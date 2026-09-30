@@ -5,24 +5,20 @@ import { parseEther, formatEther, createPublicClient, http } from 'viem';
 import { useParams } from 'next/navigation';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { PROTECTED_PAY_ABI } from '../../lib/abi';
-import { shortAddress, hashkeyMainnet, hashkeyTestnet, CONTRACT_ADDRESSES, EXPLORER_URLS } from '../../lib/wagmi';
+import { shortAddress, arcTestnet, CONTRACT_ADDRESSES, EXPLORER_URLS } from '../../lib/wagmi';
 import { useContractAddress } from '../../hooks/useContract';
 import Toast, { ToastType } from '../../components/Toast';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { generateInvoicePDF } from '../../lib/invoice';
+import { UsdcBadge } from '../../components/UsdcIcon';
 import { CheckCircle2, Ban, ArrowRight, ExternalLink, Shield, Copy, Check, Download, Share2 } from 'lucide-react';
 
-const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'HSK';
+const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
-// ── Dedicated read-only clients — completely independent of wallet state ───────
-const mainnetClient = createPublicClient({
-  chain: hashkeyMainnet,
-  transport: http('https://mainnet.hsk.xyz'),
-});
-
+// ── Dedicated read-only client — completely independent of wallet state ────────
 const testnetClient = createPublicClient({
-  chain: hashkeyTestnet,
-  transport: http('https://testnet.hsk.xyz'),
+  chain: arcTestnet,
+  transport: http('https://rpc.testnet.arc.network'),
 });
 
 interface LinkData {
@@ -76,9 +72,9 @@ function PageHeader() {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 10, padding: '14px 24px' }}>
       <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-        <img src="/logo.png" alt="HashKey Pay" style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'cover' }} />
+        <img src="/logo.png" alt="ArcPay" style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'cover' }} />
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground-muted)', letterSpacing: '-0.2px' }}>
-          HashKey<span style={{ color: 'var(--primary)' }}>Pay</span>
+          Arc<span style={{ color: 'var(--primary)' }}>Pay</span>
         </span>
       </a>
     </div>
@@ -116,11 +112,10 @@ export default function PayPage() {
     setFetching(true);
     setNotFound(false);
 
-    // Try both chains using dedicated read-only clients.
-    // This works even with no wallet connected, on any browser, with any extension.
+    // Read-only lookup using a dedicated client — works even with no wallet
+    // connected. Kept as a list so more networks can be added later.
     const candidates = [
-      { chainId: hashkeyMainnet.id, readClient: mainnetClient, addr: CONTRACT_ADDRESSES[hashkeyMainnet.id] },
-      { chainId: hashkeyTestnet.id, readClient: testnetClient, addr: CONTRACT_ADDRESSES[hashkeyTestnet.id] },
+      { chainId: arcTestnet.id, readClient: testnetClient, addr: CONTRACT_ADDRESSES[arcTestnet.id] },
     ];
 
     for (const { chainId, readClient, addr } of candidates) {
@@ -179,7 +174,7 @@ export default function PayPage() {
   }, [link, linkId, remarks, customAmt, writeContractAsync, isConnected, detectedChainId, contractAddress]);
 
   const handleDownloadInvoice = useCallback((l: LinkData, txH?: string) => {
-    const explorer = detectedChainId ? EXPLORER_URLS[detectedChainId] : EXPLORER_URLS[hashkeyTestnet.id];
+    const explorer = detectedChainId ? EXPLORER_URLS[detectedChainId] : EXPLORER_URLS[arcTestnet.id];
     const amtDisplay = l.amount === 0n
       ? 'Custom'
       : `${parseFloat(formatEther(l.amount)).toFixed(4)} ${NATIVE}`;
@@ -239,7 +234,7 @@ export default function PayPage() {
             <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--foreground)', marginBottom: 8 }}>Link Not Found</h1>
             <p style={{ fontSize: 13, color: 'var(--foreground-muted)', lineHeight: 1.6, marginBottom: 24 }}>This payment link doesn&apos;t exist or has been removed.</p>
             <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 22px', borderRadius: 999, background: 'var(--primary)', color: 'var(--primary-fg)', textDecoration: 'none', fontWeight: 700, fontSize: 14 }}>
-              Go to HashKey Pay
+              Go to ArcPay
             </a>
           </div>
         </div>
@@ -301,7 +296,7 @@ export default function PayPage() {
               {effectiveTxHash && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4 }}>
                   <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Transaction</span>
-                  <a href={`${detectedChainId ? EXPLORER_URLS[detectedChainId] : EXPLORER_URLS[hashkeyTestnet.id]}/tx/${effectiveTxHash}`} target="_blank" rel="noopener noreferrer"
+                  <a href={`${detectedChainId ? EXPLORER_URLS[detectedChainId] : EXPLORER_URLS[arcTestnet.id]}/tx/${effectiveTxHash}`} target="_blank" rel="noopener noreferrer"
                     style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: 'monospace', color: 'var(--primary)', textDecoration: 'none' }}>
                     {shortAddress(effectiveTxHash)} <ExternalLink size={10} />
                   </a>
@@ -327,7 +322,7 @@ export default function PayPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <Shield size={11} color="var(--foreground-subtle)" />
-              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by HashKey Pay · HashKey Chain</span>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by ArcPay · Arc Testnet</span>
             </div>
           </div>
         </div>
@@ -388,7 +383,10 @@ export default function PayPage() {
                 textAlign: 'center', paddingBottom: 24, marginBottom: 22,
                 borderBottom: '1px solid var(--border)',
               }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--foreground-subtle)', textTransform: 'uppercase', marginBottom: 10 }}>Amount Due</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--foreground-subtle)', textTransform: 'uppercase', margin: 0 }}>Amount Due</p>
+                  <UsdcBadge />
+                </div>
                 <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8 }}>
                   <span style={{ fontSize: 52, fontWeight: 800, color: 'var(--primary)', letterSpacing: '-3px', lineHeight: 1 }}>
                     {parseFloat(formatEther(link.amount)).toFixed(4)}
@@ -401,7 +399,10 @@ export default function PayPage() {
             {/* Open amount */}
             {link.amount === 0n && (
               <div style={{ marginBottom: 20 }}>
-                <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--foreground-subtle)', textTransform: 'uppercase', marginBottom: 10, textAlign: 'center' }}>Enter Amount</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 10 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--foreground-subtle)', textTransform: 'uppercase', margin: 0 }}>Enter Amount</p>
+                  <UsdcBadge />
+                </div>
                 <input value={customAmt} onChange={e => setCustomAmt(e.target.value)}
                   type="number" min="0" step="0.001" placeholder={`0.00`}
                   style={{ width: '100%', padding: '14px', borderRadius: 14, background: 'var(--surface-elevated)', color: 'var(--primary)', border: '1px solid var(--border)', fontSize: 28, fontWeight: 800, outline: 'none', boxSizing: 'border-box' as const, textAlign: 'center', letterSpacing: '-1px' }}
@@ -442,7 +443,7 @@ export default function PayPage() {
           {/* Trust line */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <Shield size={11} color="var(--foreground-subtle)" />
-            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by HashKey Pay · HashKey Chain</span>
+            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by ArcPay · Arc Testnet</span>
           </div>
         </div>
       </div>

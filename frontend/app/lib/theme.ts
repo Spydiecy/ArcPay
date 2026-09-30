@@ -1,5 +1,5 @@
 /**
- * HashKey Pay — Single source of truth for all design tokens.
+ * ArcPay — Single source of truth for all design tokens.
  *
  * Color scheme:
  *   Background  → charcoal/slate (not pure black)

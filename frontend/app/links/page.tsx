@@ -15,8 +15,9 @@ import {
   Link2, Plus, Copy, Check, QrCode, XCircle,
   RefreshCw, ExternalLink, Clock, CheckCircle2, Ban, Download, Share2,
 } from 'lucide-react';
+import { UsdcBadge } from '../components/UsdcIcon';
 
-const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'HSK';
+const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
 const LINK_COLORS: Record<string, string> = {
   Active:    'var(--primary)',
@@ -114,7 +115,7 @@ function LinkCard({ link, onCancel, onQR }: {
   };
 
   const handleDownload = () => {
-    const EXPLORER = 'https://testnet-explorer.hsk.xyz';
+    const EXPLORER = 'https://testnet.arcscan.app';
     generateInvoicePDF({
       invoiceId:        link.linkId,
       description:      link.description,
@@ -308,7 +309,7 @@ function LinksContent() {
   return (
     <div style={{ padding: '32px 36px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
       <div style={{ marginBottom: 24 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 6 }}>HashKey Pay</p>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 6 }}>ArcPay</p>
         <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--foreground)', letterSpacing: '-1px' }}>Payment Links</h1>
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 4 }}>Create shareable payment links with QR codes</p>
       </div>
@@ -335,7 +336,10 @@ function LinksContent() {
 
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-muted)', textTransform: 'uppercase' }}>Amount ({NATIVE})</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-muted)', textTransform: 'uppercase' }}>Amount ({NATIVE})</label>
+                  <UsdcBadge />
+                </div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: 'var(--foreground-muted)' }}>
                   <input type="checkbox" checked={anyAmount} onChange={e => setAnyAmount(e.target.checked)}
                     style={{ width: 14, height: 14, accentColor: 'var(--primary)', cursor: 'pointer' }} />

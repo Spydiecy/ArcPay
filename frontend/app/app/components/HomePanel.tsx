@@ -2,13 +2,14 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { parseEther } from 'viem';
-import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract } from 'wagmi';
 import { useHistory, formatPOT, EscrowRecord, GroupRecord, BatchRecord, TokenEscrowRecord, PaymentLinkRecord } from '../../hooks/useHistory';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL } from '../../lib/abi';
 import { shortAddress } from '../../lib/wagmi';
 import { useContractAddress } from '../../hooks/useContract';
 import Toast, { ToastType } from '../../components/Toast';
 import { AppTab } from './Sidebar';
+import { UsdcBadge } from '../../components/UsdcIcon';
 import {
   Lock, Users, Zap, History, ArrowRight,
   CheckCircle, RefreshCw, Copy, Check,
@@ -32,7 +33,6 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
   const { escrows, tokenEscrows, groups, batches, paymentLinks, formattedBalance, loading: histLoading, refresh } = useHistory();
   const { writeContractAsync } = useWriteContract();
 
-  const [profile,  setProfile]  = useState<UserProfile | null>(null);
   const [username, setUsername] = useState('');
   const [loading,  setLoading]  = useState(false);
   const [toast,    setToast]    = useState<{ msg: string; type: ToastType } | null>(null);
@@ -42,18 +42,27 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
   const { isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
   const t = (msg: string, type: ToastType) => setToast({ msg, type });
 
-  useEffect(() => {
-    if (!address || !client) return;
-    setProfile(null);
-    client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUser', args: [address] })
-      .then(d => setProfile(d as UserProfile))
-      .catch(() => setProfile(null));
-    refresh();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, chainId, contractAddress]);
+  // useReadContract (React Query under the hood) instead of a manual
+  // client.readContract() effect — it retries automatically on Arc Testnet's
+  // flaky public RPC instead of silently giving up on a single failed call.
+  const { data: profileData, refetch: refetchProfile } = useReadContract({
+    address: contractAddress,
+    abi: PROTECTED_PAY_ABI,
+    functionName: 'getUser',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+  const profile = (profileData && (profileData as UserProfile).username)
+    ? (profileData as UserProfile)
+    : null;
 
   useEffect(() => {
-    if (txSuccess) { t('Username registered!', 'success'); refresh(); setProfile({ username, createdAt: BigInt(Date.now()) }); setUsername(''); setTxHash(undefined); }
+    if (address && client) refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, chainId, client]);
+
+  useEffect(() => {
+    if (txSuccess) { t('Username registered!', 'success'); refresh(); refetchProfile(); setUsername(''); setTxHash(undefined); }
   }, [txSuccess]); // eslint-disable-line
 
   const handleRegister = useCallback(async () => {
@@ -138,7 +147,10 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
         {/* Balance */}
         <div style={{ padding: '22px 24px', borderRadius: 16, background: 'var(--primary-container)', border: '1px solid var(--primary)30', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--on-primary-container)', opacity: 0.65, textTransform: 'uppercase' }}>Balance</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--on-primary-container)', opacity: 0.65, textTransform: 'uppercase', margin: 0 }}>Balance</p>
+              <UsdcBadge />
+            </div>
             <button onClick={refresh} disabled={histLoading} style={{ width: 30, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,0.1)', color: 'var(--on-primary-container)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <RefreshCw size={13} style={{ animation: histLoading ? 'spin 1s linear infinite' : 'none' }} />
             </button>

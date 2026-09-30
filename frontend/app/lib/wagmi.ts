@@ -11,45 +11,26 @@ import {
 } from '@rainbow-me/rainbowkit/wallets';
 import type { Chain } from 'wagmi/chains';
 
-// ── HashKey Chain Mainnet ─────────────────────────────────────────────────────
-export const hashkeyMainnet = {
-  id: 177,
-  name: 'HashKey Chain',
+// ── Arc Testnet ────────────────────────────────────────────────────────────────
+// Currently the only live network for ArcPay. The chain switcher UI is kept in
+// place (see Sidebar.tsx `NETWORKS`) so additional networks (e.g. Arc Mainnet)
+// can be dropped in later without reworking the UI.
+export const arcTestnet = {
+  id: 5042002,
+  name: 'Arc Testnet',
   nativeCurrency: {
-    name: 'HSK',
-    symbol: 'HSK',
+    name: 'USDC',
+    symbol: 'USDC',
     decimals: 18,
   },
   rpcUrls: {
-    default: { http: ['https://mainnet.hsk.xyz'] },
-    public:  { http: ['https://mainnet.hsk.xyz'] },
+    default: { http: ['https://rpc.testnet.arc.network'] },
+    public:  { http: ['https://rpc.testnet.arc.network'] },
   },
   blockExplorers: {
     default: {
-      name: 'HashKey Explorer',
-      url: 'https://hashkey.blockscout.com',
-    },
-  },
-  testnet: false,
-} as const satisfies Chain;
-
-// ── HashKey Chain Testnet ─────────────────────────────────────────────────────
-export const hashkeyTestnet = {
-  id: 133,
-  name: 'HashKey Chain Testnet',
-  nativeCurrency: {
-    name: 'HSK',
-    symbol: 'HSK',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: ['https://testnet.hsk.xyz'] },
-    public:  { http: ['https://testnet.hsk.xyz'] },
-  },
-  blockExplorers: {
-    default: {
-      name: 'HashKey Testnet Explorer',
-      url: 'https://testnet-explorer.hsk.xyz',
+      name: 'Arcscan',
+      url: 'https://testnet.arcscan.app',
     },
   },
   testnet: true,
@@ -57,21 +38,18 @@ export const hashkeyTestnet = {
 
 // ── Contract addresses per network ───────────────────────────────────────────
 export const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
-  [hashkeyTestnet.id]: (
-    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET || '0xF93132d75c20EfeD556EC2Bc5aC777750665D3a9'
-  ) as `0x${string}`,
-  [hashkeyMainnet.id]: (
-    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_MAINNET || '0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6'
+  [arcTestnet.id]: (
+    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET || '0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6'
   ) as `0x${string}`,
 };
 
-// Default contract address (falls back to testnet)
+// Default contract address (falls back to Arc Testnet)
 export const CONTRACT_ADDRESS = (
-  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || CONTRACT_ADDRESSES[hashkeyTestnet.id]
+  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || CONTRACT_ADDRESSES[arcTestnet.id]
 ) as `0x${string}`;
 
 export function getContractAddress(chainId: number): `0x${string}` {
-  return CONTRACT_ADDRESSES[chainId] ?? CONTRACT_ADDRESSES[hashkeyTestnet.id];
+  return CONTRACT_ADDRESSES[chainId] ?? CONTRACT_ADDRESSES[arcTestnet.id];
 }
 
 // ── WalletConnect project ID ──────────────────────────────────────────────────
@@ -97,34 +75,34 @@ const connectors = WC_PROJECT_ID
         },
       ],
       {
-        appName: 'HashKey Pay',
+        appName: 'ArcPay',
         projectId: WC_PROJECT_ID,
       }
     )
-  : [injected(), metaMask(), coinbaseWallet({ appName: 'HashKey Pay' })];
+  : [injected(), metaMask(), coinbaseWallet({ appName: 'ArcPay' })];
 
 // ── Wagmi config ──────────────────────────────────────────────────────────────
+// `chains` is an array on purpose (not a single chain) so the network switcher
+// keeps working as-is once more networks are added here in the future.
 export const wagmiConfig = createConfig({
-  chains: [hashkeyTestnet, hashkeyMainnet],
+  chains: [arcTestnet],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connectors: connectors as any,
   transports: {
-    [hashkeyTestnet.id]: http('https://testnet.hsk.xyz'),
-    [hashkeyMainnet.id]: http('https://mainnet.hsk.xyz'),
+    [arcTestnet.id]: http('https://rpc.testnet.arc.network'),
   },
   ssr: true,
 });
 
 // ── Explorer URLs per chain ───────────────────────────────────────────────────
 export const EXPLORER_URLS: Record<number, string> = {
-  [hashkeyTestnet.id]: 'https://testnet-explorer.hsk.xyz',
-  [hashkeyMainnet.id]: 'https://hashkey.blockscout.com',
+  [arcTestnet.id]: 'https://testnet.arcscan.app',
 };
 
-export const EXPLORER_URL = EXPLORER_URLS[hashkeyTestnet.id];
+export const EXPLORER_URL = EXPLORER_URLS[arcTestnet.id];
 
 export function getExplorerUrl(chainId: number): string {
-  return EXPLORER_URLS[chainId] ?? EXPLORER_URLS[hashkeyTestnet.id];
+  return EXPLORER_URLS[chainId] ?? EXPLORER_URLS[arcTestnet.id];
 }
 
 export function explorerTx(hash: string, chainId?: number): string {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAccount, useBalance, usePublicClient, useChainId } from 'wagmi';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL, GROUP_STATUS_LABEL } from '../lib/abi';
 import { getContractAddress, formatNative } from '../lib/wagmi';
@@ -70,14 +70,14 @@ export const LINK_STATUS_LABEL: Record<number, string> = {
 
 // ── Format helpers ─────────────────────────────────────────────────────────────
 export function formatPOT(raw: string): string {
-  if (!raw || raw === '0') return '0 HSK';
+  const symbol = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
+  if (!raw || raw === '0') return `0 ${symbol}`;
   try {
     const wei = BigInt(raw.replace(/,/g, ''));
     const formatted = formatNative(wei);
-    const symbol = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'HSK';
     return `${formatted} ${symbol}`;
   } catch {
-    return '— HSK';
+    return `— ${symbol}`;
   }
 }
 
@@ -176,42 +176,60 @@ export function useHistory() {
     if (!address || !client) return;
     const contractAddress = getContractAddress(chainId);
     setLoading(true);
-    try {
-      const [bal, rawEscrows, rawTokenEscrows, rawGroups, rawBatches, rawLinks] = await Promise.all([
-        refetchBalance(),
-        client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserEscrows', args: [address] }),
-        client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserTokenEscrows', args: [address] }),
-        client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserGroups', args: [address] }),
-        client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserBatches', args: [address] }),
-        client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserPaymentLinks', args: [address] }),
-      ]);
 
-      if (bal.data) setBalance(String(bal.data.value));
-      setEscrows([...(rawEscrows as unknown[])].reverse().map(mapEscrow));
-      setTokenEscrows([...(rawTokenEscrows as unknown[])].reverse().map(mapTokenEscrow));
-      setGroups([...(rawGroups as unknown[])].reverse().map(mapGroup));
-      setBatches([...(rawBatches as unknown[])].reverse().map(mapBatch));
-      setPaymentLinks([...(rawLinks as unknown[])].reverse().map(mapPaymentLink));
-    } catch (err) {
-      console.warn('History refresh error:', err);
-    } finally {
-      setLoading(false);
-    }
+    // Each read is independent — the public Arc Testnet RPC can be flaky or
+    // rate-limit concurrent requests, and a single failed call must not wipe
+    // out data that loaded fine (e.g. balance disappearing because a
+    // getUserGroups call happened to fail). Promise.allSettled + per-result
+    // handling means a transient failure just leaves that slice unchanged.
+    const [bal, rawEscrows, rawTokenEscrows, rawGroups, rawBatches, rawLinks] = await Promise.allSettled([
+      refetchBalance(),
+      client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserEscrows', args: [address] }),
+      client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserTokenEscrows', args: [address] }),
+      client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserGroups', args: [address] }),
+      client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserBatches', args: [address] }),
+      client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserPaymentLinks', args: [address] }),
+    ]);
+
+    if (bal.status === 'fulfilled' && bal.value.data) setBalance(String(bal.value.data.value));
+    else if (bal.status === 'rejected') console.warn('Balance refresh failed:', bal.reason);
+
+    if (rawEscrows.status === 'fulfilled') setEscrows([...(rawEscrows.value as unknown[])].reverse().map(mapEscrow));
+    else console.warn('Escrow history refresh failed:', rawEscrows.reason);
+
+    if (rawTokenEscrows.status === 'fulfilled') setTokenEscrows([...(rawTokenEscrows.value as unknown[])].reverse().map(mapTokenEscrow));
+    else console.warn('Token escrow history refresh failed:', rawTokenEscrows.reason);
+
+    if (rawGroups.status === 'fulfilled') setGroups([...(rawGroups.value as unknown[])].reverse().map(mapGroup));
+    else console.warn('Group history refresh failed:', rawGroups.reason);
+
+    if (rawBatches.status === 'fulfilled') setBatches([...(rawBatches.value as unknown[])].reverse().map(mapBatch));
+    else console.warn('Batch history refresh failed:', rawBatches.reason);
+
+    if (rawLinks.status === 'fulfilled') setPaymentLinks([...(rawLinks.value as unknown[])].reverse().map(mapPaymentLink));
+    else console.warn('Payment link history refresh failed:', rawLinks.reason);
+
+    setLoading(false);
   }, [address, chainId, client, refetchBalance]);
 
   // ── Auto-refresh when chain or address changes ────────────────────────────
+  const prevAddrRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    // Clear stale data immediately so old chain's data doesn't show
-    setEscrows([]);
-    setTokenEscrows([]);
-    setGroups([]);
-    setBatches([]);
-    setPaymentLinks([]);
-    setBalance(null);
-    // Fetch fresh data for the new chain
+    // Only clear stale data when the address actually changes (switching
+    // accounts) — not on every re-render/reconnect, so a transient RPC
+    // hiccup on refresh doesn't blank the UI before the retry lands.
+    if (prevAddrRef.current !== address) {
+      setEscrows([]);
+      setTokenEscrows([]);
+      setGroups([]);
+      setBatches([]);
+      setPaymentLinks([]);
+      setBalance(null);
+      prevAddrRef.current = address;
+    }
     if (address && client) refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chainId, address]);
+  }, [chainId, address, client]);
 
   const formattedBalance = balance ? formatPOT(balance)
     : balanceData ? `${formatNative(balanceData.value)} ${balanceData.symbol}`

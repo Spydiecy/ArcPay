@@ -3,45 +3,38 @@ import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { createPublicClient, http, formatEther } from 'viem';
 
-const NATIVE_SYMBOL = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'HSK';
+const NATIVE_SYMBOL = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
 // ── Chain definitions ─────────────────────────────────────────────────────────
-const hashkeyTestnet = {
-  id: 133,
-  name: 'HashKey Chain Testnet',
-  nativeCurrency: { name: 'HSK', symbol: 'HSK', decimals: 18 },
-  rpcUrls: { default: { http: ['https://testnet.hsk.xyz'] } },
-} as const;
-
-const hashkeyMainnet = {
-  id: 177,
-  name: 'HashKey Chain',
-  nativeCurrency: { name: 'HSK', symbol: 'HSK', decimals: 18 },
-  rpcUrls: { default: { http: ['https://mainnet.hsk.xyz'] } },
+// Arc Testnet only for now — kept as a lookup map (rather than a single
+// constant) so more networks (e.g. Arc Mainnet) can be added later without
+// reworking the chain-switching logic below.
+const arcTestnet = {
+  id: 5042002,
+  name: 'Arc Testnet',
+  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
+  rpcUrls: { default: { http: ['https://rpc.testnet.arc.network'] } },
 } as const;
 
 // ── Contract addresses per chain ──────────────────────────────────────────────
 const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
-  133: (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET || '0xF93132d75c20EfeD556EC2Bc5aC777750665D3a9') as `0x${string}`,
-  177: (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_MAINNET || '0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6') as `0x${string}`,
+  5042002: (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET || '0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6') as `0x${string}`,
 };
 
 // ── Explorer URLs per chain ───────────────────────────────────────────────────
 const EXPLORER_URLS: Record<number, string> = {
-  133: 'https://testnet-explorer.hsk.xyz',
-  177: 'https://hashkey.blockscout.com',
+  5042002: 'https://testnet.arcscan.app',
 };
 
 // ── Build a chain-specific public client ──────────────────────────────────────
-function getClient(chainId: number) {
-  if (chainId === 177) {
-    return createPublicClient({ chain: hashkeyMainnet as never, transport: http('https://mainnet.hsk.xyz') });
-  }
-  return createPublicClient({ chain: hashkeyTestnet as never, transport: http('https://testnet.hsk.xyz') });
+// Signature kept as (chainId) even though only Arc Testnet exists today, so
+// more networks can be added later without changing call sites.
+function getClient(_chainId: number) {
+  return createPublicClient({ chain: arcTestnet as never, transport: http('https://rpc.testnet.arc.network') });
 }
 
-function getNetworkName(chainId: number) {
-  return chainId === 177 ? 'HashKey Chain Mainnet' : 'HashKey Chain Testnet';
+function getNetworkName(_chainId: number) {
+  return 'Arc Testnet';
 }
 
 const ABI = [
@@ -62,25 +55,25 @@ const LINK_STATUS   = ['Active', 'Paid', 'Cancelled'];
 const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
 
 // ── System prompt ─────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are PayBot, the friendly AI assistant built into HashKey Pay — a trustless on-chain payment platform on HashKey Chain (EVM, Chain ID 133 testnet / 177 mainnet, native gas token: ${NATIVE_SYMBOL}).
+const SYSTEM_PROMPT = `You are PayBot, the friendly AI assistant built into ArcPay — a trustless on-chain payment platform on Arc Testnet (EVM, Chain ID 5042002, native gas + settlement currency: ${NATIVE_SYMBOL}).
 
 ## Personality
-You ONLY discuss HashKey Pay and crypto payments. You are NOT a general-purpose AI.
-When asked about anything unrelated (weather, sports, news, recipes, general coding, etc.) give a short, warm, witty redirect back to HashKey Pay. Examples:
-- Weather → "Not sure about the weather, but ${NATIVE_SYMBOL} transfers on HashKey Chain are flowing smoothly! Want to send some?"
+You ONLY discuss ArcPay and crypto payments. You are NOT a general-purpose AI.
+When asked about anything unrelated (weather, sports, news, recipes, general coding, etc.) give a short, warm, witty redirect back to ArcPay. Examples:
+- Weather → "Not sure about the weather, but ${NATIVE_SYMBOL} transfers on Arc Testnet are flowing smoothly! Want to send some?"
 - Sports → "I'm more of a payments guy! How about sending a batch payment to your team after the game?"
 - Crypto prices → "I don't track prices, but I can check your ${NATIVE_SYMBOL} balance on-chain — want me to?"
-Never flatly refuse. Always steer back to HashKey Pay.
+Never flatly refuse. Always steer back to ArcPay.
 
 ## CRITICAL BEHAVIOR — Always trigger actions directly
 When the user asks you to send, transfer, create, register, claim, refund, or do anything transaction-related — you MUST call the appropriate build tool immediately. Do NOT just explain steps. The build tool will produce a clickable wallet button in the UI.
 
 Examples of when to call tools immediately:
-- User says "send 0.01 HSK to @test" → call buildEscrow immediately
+- User says "send 0.01 USDC to @test" → call buildEscrow immediately
 - User says "create a group payment" → call buildGroupPayment immediately
 - User says "register @myname" → call buildRegisterUsername immediately
 - User says "send batch to these addresses" → call buildBatchTransfer immediately
-- User says "create a payment link for 1 HSK" → call buildPaymentLink immediately
+- User says "create a payment link for 1 USDC" → call buildPaymentLink immediately
 - User says "claim escrow #5" → call claimEscrow with escrowId="5" immediately
 - User says "refund escrow #3" → call refundEscrow with escrowId="3" immediately
 - User says "claim my escrow" (no ID) → FIRST call getEscrowHistory to find pending escrows, THEN call claimEscrow with the correct ID
@@ -95,8 +88,8 @@ Examples of when to call tools immediately:
 Never say "here are the steps" when you can call a tool. Call the tool FIRST — the user can always ask for more info after.
 
 ## Navigation rules — CRITICAL
-- NEVER invent external URLs like "https://hashkeypay.xyz/anything"
-- All navigation is within the HashKey Pay dashboard sidebar: **Protected Transfer**, **Group Split**, **Batch Payment**, **Payment Links**, **History**
+- NEVER invent external URLs like "https://arcpay.xyz/anything"
+- All navigation is within the ArcPay dashboard sidebar: **Protected Transfer**, **Group Split**, **Batch Payment**, **Payment Links**, **History**
 - Always say: "Go to the **Protected Transfer** tab in the dashboard" — never a URL
 
 ## Features
@@ -159,10 +152,10 @@ Active network: {NETWORK_PLACEHOLDER}`;
 export async function POST(req: Request) {
   const { messages, walletAddress, chainId } = await req.json();
 
-  // Resolve chain-specific values — default to testnet if not provided
-  const activeChainId = typeof chainId === 'number' ? chainId : 133;
-  const CONTRACT_ADDRESS = CONTRACT_ADDRESSES[activeChainId] ?? CONTRACT_ADDRESSES[133];
-  const EXPLORER = EXPLORER_URLS[activeChainId] ?? EXPLORER_URLS[133];
+  // Resolve chain-specific values — default to Arc Testnet if not provided
+  const activeChainId = typeof chainId === 'number' ? chainId : 5042002;
+  const CONTRACT_ADDRESS = CONTRACT_ADDRESSES[activeChainId] ?? CONTRACT_ADDRESSES[5042002];
+  const EXPLORER = EXPLORER_URLS[activeChainId] ?? EXPLORER_URLS[5042002];
   const networkName = getNetworkName(activeChainId);
   const publicClient = getClient(activeChainId);
 
@@ -270,7 +263,7 @@ export async function POST(req: Request) {
       }),
 
       buildEscrow: tool({
-        description: 'ALWAYS call this tool when user wants to send HSK to someone as a protected transfer. Resolves @username to address and triggers the wallet confirmation button in the UI.',
+        description: 'ALWAYS call this tool when user wants to send USDC to someone as a protected transfer. Resolves @username to address and triggers the wallet confirmation button in the UI.',
         parameters: z.object({ recipient: z.string(), amount: z.string(), remarks: z.string() }),
         execute: async ({ recipient, amount, remarks }) => {
           let addr = recipient;
@@ -301,7 +294,7 @@ export async function POST(req: Request) {
       }),
 
       buildBatchTransfer: tool({
-        description: 'ALWAYS call this when user wants to batch send HSK to multiple addresses. Resolves @usernames and triggers the wallet button.',
+        description: 'ALWAYS call this when user wants to batch send USDC to multiple addresses. Resolves @usernames and triggers the wallet button.',
         parameters: z.object({
           recipients: z.array(z.object({ address: z.string(), amount: z.string() })),
           remarks: z.string(),

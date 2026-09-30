@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useAccount, useDisconnect, useBalance, useChainId, useSwitchChain } from 'wagmi';
-import { formatNative, shortAddress, hashkeyMainnet, hashkeyTestnet } from '../../lib/wagmi';
+import { formatNative, shortAddress, arcTestnet } from '../../lib/wagmi';
 import {
   Lock, Users, Zap, History, ChevronLeft, ChevronRight,
   Copy, Check, Home, Sun, Moon, LogOut, Link2, ChevronDown,
 } from 'lucide-react';
+import { UsdcIcon } from '../../components/UsdcIcon';
 
 export type AppTab = 'home' | 'protected' | 'group' | 'batch' | 'history' | 'links';
 
@@ -25,22 +26,17 @@ const NAV_ITEMS: { tab: AppTab; icon: React.ElementType; label: string }[] = [
   { tab: 'history',   icon: History, label: 'History'            },
 ];
 
+// Only Arc Testnet is live right now — this list (and the dropdown UI below)
+// is kept in place so additional networks (e.g. Arc Mainnet) can be added
+// later without reworking the switcher.
 const NETWORKS = [
   {
-    chain: hashkeyTestnet,
+    chain: arcTestnet,
     label: 'Testnet',
     badge: 'TEST',
     color: '#F59E0B',
     bg: 'rgba(245,158,11,0.1)',
     border: 'rgba(245,158,11,0.3)',
-  },
-  {
-    chain: hashkeyMainnet,
-    label: 'Mainnet',
-    badge: 'MAIN',
-    color: '#2DD4BF',
-    bg: 'rgba(45,212,191,0.1)',
-    border: 'rgba(45,212,191,0.3)',
   },
 ];
 
@@ -86,7 +82,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     }
   };
 
-  const nativeSymbol = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'HSK';
+  const nativeSymbol = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
   const navBtn = (tab: AppTab, Icon: React.ElementType, label: string) => {
     const active = activeTab === tab;
@@ -108,8 +104,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
       {/* Logo */}
       <div style={{ padding: collapsed ? '18px 0' : '18px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'space-between', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 9, overflow: 'hidden' }}>
-          <img src="/logo.png" alt="HashKey Pay" style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
-          {!collapsed && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.3px', whiteSpace: 'nowrap' }}>HashKey<span style={{ color: 'var(--primary)' }}>Pay</span></span>}
+          <img src="/logo.png" alt="ArcPay" style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+          {!collapsed && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.3px', whiteSpace: 'nowrap' }}>Arc<span style={{ color: 'var(--primary)' }}>Pay</span></span>}
         </div>
         <button onClick={() => setCollapsed(!collapsed)} style={{ width: 24, height: 24, borderRadius: 6, flexShrink: 0, background: 'var(--surface-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--foreground-muted)' }}>
           {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
@@ -121,12 +117,12 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {collapsed ? (
           /* Collapsed: show chain logo */
           <div
-            title={`HashKey ${currentNetwork.label} — expand to switch`}
+            title={`Arc ${currentNetwork.label} — expand to switch`}
             style={{ display: 'flex', justifyContent: 'center' }}
           >
             <img
-              src="/chain/Hashkey.png"
-              alt="HashKey Chain"
+              src="/chain/arc.png"
+              alt="Arc Testnet"
               style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', display: 'block', margin: '2px auto' }}
               onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
@@ -147,13 +143,13 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             >
               {/* Chain logo */}
               <img
-                src="/chain/Hashkey.png"
-                alt="HashKey"
+                src="/chain/arc.png"
+                alt="Arc"
                 style={{ width: 16, height: 16, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
               <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: currentNetwork.color, textAlign: 'left' }}>
-                {isSwitching ? 'Switching…' : `HashKey ${currentNetwork.label}`}
+                {isSwitching ? 'Switching…' : `Arc ${currentNetwork.label}`}
               </span>
               <ChevronDown
                 size={12}
@@ -190,14 +186,14 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                     >
                       {/* Chain logo per row */}
                       <img
-                        src="/chain/Hashkey.png"
-                        alt="HashKey"
+                        src="/chain/arc.png"
+                        alt="Arc"
                         style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, opacity: isActive ? 1 : 0.5 }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                       />
                       <div style={{ flex: 1, textAlign: 'left' }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: isActive ? net.color : 'var(--foreground)', lineHeight: 1.2 }}>
-                          HashKey {net.label}
+                          Arc {net.label}
                         </p>
                         <p style={{ fontSize: 10, color: 'var(--foreground-subtle)', lineHeight: 1.2, marginTop: 1 }}>
                           Chain ID {net.chain.id}
@@ -243,8 +239,8 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
               {balance && (
                 <div style={{ padding: '7px 10px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
                   <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-subtle)', textTransform: 'uppercase', marginBottom: 2 }}>Balance</p>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.3px' }}>
-                    {formatNative(balance.value)} {nativeSymbol}
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.3px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <UsdcIcon size={13} /> {formatNative(balance.value)} {nativeSymbol}
                   </p>
                 </div>
               )}

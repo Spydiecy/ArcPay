@@ -10,6 +10,7 @@ import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
 import { Users, UserPlus, XCircle, RefreshCw, AtSign, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { UsdcBadge } from '../components/UsdcIcon';
 
 interface GroupData {
   id: bigint; creator: string; recipient: string;
@@ -24,7 +25,7 @@ const INPUT: React.CSSProperties = {
   border: '1px solid var(--border)', fontSize: 14, outline: 'none', boxSizing: 'border-box',
 };
 
-const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'HSK';
+const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
 // ── Inline expandable contributors for group history cards ───────────────────
 function AddrPill({ address, myAddr, client }: { address: string; myAddr: string; client: ReturnType<typeof usePublicClient> }) {
@@ -226,7 +227,7 @@ function GroupContent() {
   return (
     <div style={{ padding: '32px 36px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
       <div style={{ marginBottom: 24 }}>
-        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 6 }}>HashKey Pay</p>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 6 }}>ArcPay</p>
         <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--foreground)', letterSpacing: '-1px' }}>Group Split</h1>
         <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginTop: 4 }}>Crowdfund a payment with multiple contributors</p>
       </div>
@@ -262,12 +263,15 @@ function GroupContent() {
                 {resolvedRecipient && <p style={{ fontSize: 12, color: 'var(--primary)', marginTop: 5, fontFamily: 'monospace' }}>✓ {resolvedRecipient.slice(0, 14)}…</p>}
               </div>
               {[
-                { label: `Total Amount (${NATIVE})`, value: totalAmount, set: setTotalAmount, placeholder: '0.02', type: 'number' },
-                { label: 'Participants (min 2)', value: participants, set: setParticipants, placeholder: '2', type: 'number' },
-                { label: 'Remarks', value: remarks, set: setRemarks, placeholder: 'Group gift…', type: 'text' },
-              ].map(({ label, value, set, placeholder, type }) => (
+                { label: `Total Amount (${NATIVE})`, value: totalAmount, set: setTotalAmount, placeholder: '0.02', type: 'number', badge: true },
+                { label: 'Participants (min 2)', value: participants, set: setParticipants, placeholder: '2', type: 'number', badge: false },
+                { label: 'Remarks', value: remarks, set: setRemarks, placeholder: 'Group gift…', type: 'text', badge: false },
+              ].map(({ label, value, set, placeholder, type, badge }) => (
                 <div key={label}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-muted)', textTransform: 'uppercase', marginBottom: 8 }}>{label}</label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-muted)', textTransform: 'uppercase' }}>{label}</label>
+                    {badge && <UsdcBadge />}
+                  </div>
                   <input value={value} onChange={e => set(e.target.value)} placeholder={placeholder} type={type}
                     style={INPUT} onFocus={e => (e.target.style.borderColor = 'var(--primary)')} onBlur={e => (e.target.style.borderColor = 'var(--border)')} />
                 </div>
