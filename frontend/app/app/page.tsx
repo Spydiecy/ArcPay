@@ -13,6 +13,7 @@ const GroupContent   = dynamic(() => import('../group/page').then(m => ({ defaul
 const BatchContent   = dynamic(() => import('../batch/page').then(m => ({ default: m.default })),   { ssr: false });
 const ProfileContent = dynamic(() => import('../profile/page').then(m => ({ default: m.default })), { ssr: false });
 const LinksContent   = dynamic(() => import('../links/page').then(m => ({ default: m.default })),   { ssr: false });
+const GatewayFundContent = dynamic(() => import('./components/GatewayFundPanel'), { ssr: false });
 
 export default function AppPage() {
   const { isConnected, isConnecting } = useAccount();
@@ -40,6 +41,7 @@ export default function AppPage() {
         {activeTab === 'group'     && <GroupContent />}
         {activeTab === 'batch'     && <BatchContent />}
         {activeTab === 'links'     && <LinksContent />}
+        {activeTab === 'fund'      && <GatewayFundContent onTabChange={setActiveTab} />}
         {activeTab === 'history'   && <ProfileContent />}
       </main>
       <AgentChatWrapper />

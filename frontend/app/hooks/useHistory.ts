@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useAccount, useBalance, usePublicClient, useChainId } from 'wagmi';
+import { useAccount, useBalance, usePublicClient } from 'wagmi';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL, GROUP_STATUS_LABEL } from '../lib/abi';
-import { getContractAddress, formatNative } from '../lib/wagmi';
+import { getContractAddress, formatNative, arcTestnet } from '../lib/wagmi';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface EscrowRecord {
@@ -160,9 +160,12 @@ function mapPaymentLink(l: any): PaymentLinkRecord {
 
 export function useHistory() {
   const { address } = useAccount();
-  const chainId     = useChainId();
-  const client      = usePublicClient();
-  const { data: balanceData, refetch: refetchBalance } = useBalance({ address });
+  // Pinned to Arc Testnet explicitly — ArcPay's contract history/balance must
+  // always reflect Arc, never whatever chain the wallet happens to be
+  // connected to (e.g. mid-deposit on a Gateway source chain).
+  const chainId     = arcTestnet.id;
+  const client      = usePublicClient({ chainId: arcTestnet.id });
+  const { data: balanceData, refetch: refetchBalance } = useBalance({ address, chainId: arcTestnet.id });
 
   const [escrows,       setEscrows]       = useState<EscrowRecord[]>([]);
   const [tokenEscrows,  setTokenEscrows]  = useState<TokenEscrowRecord[]>([]);

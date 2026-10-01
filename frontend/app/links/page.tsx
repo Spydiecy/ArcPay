@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { parseEther, formatEther } from 'viem';
-import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT, PaymentLinkRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { shortAddress } from '../lib/wagmi';
+import { shortAddress, arcTestnet } from '../lib/wagmi';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -241,7 +241,8 @@ function LinkCard({ link, onCancel, onQR }: {
 // ── Main content ──────────────────────────────────────────────────────────────
 function LinksContent() {
   const contractAddress = useContractAddress();
-  const chainId = useChainId();
+  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
+  const chainId = arcTestnet.id;
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const { paymentLinks, loading: histLoading, refresh } = useHistory();
@@ -271,6 +272,7 @@ function LinksContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'createPaymentLink',
         args: [weiAmount, description.trim()],
+        chainId: arcTestnet.id,
       });
       setTxHash(hash);
       setDescription(''); setAmount(''); setAnyAmount(false);
@@ -285,6 +287,7 @@ function LinksContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'cancelPaymentLink',
         args: [linkId as `0x${string}`],
+        chainId: arcTestnet.id,
       });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }

@@ -2,6 +2,7 @@ import { createMistral } from '@ai-sdk/mistral';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
 import { createPublicClient, http, formatEther } from 'viem';
+import { GATEWAY_API_BASE, GATEWAY_SOURCE_CHAINS, GATEWAY_WARN_THRESHOLD_USDC } from '../../lib/gateway';
 
 const NATIVE_SYMBOL = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
@@ -84,12 +85,13 @@ Examples of when to call tools immediately:
 - User says "cancel my payment link" → call getPaymentLinks first to find active links, then call cancelPaymentLink
 - User says "claim token escrow #7" → call claimTokenEscrow with escrowId="7" immediately
 - User says "refund token escrow #2" → call refundTokenEscrow with escrowId="2" immediately
+- User says "check my Gateway balance" or "how much USDC do I have on other chains" or "did my deposit land yet" → call getGatewayBalance immediately
 
 Never say "here are the steps" when you can call a tool. Call the tool FIRST — the user can always ask for more info after.
 
 ## Navigation rules — CRITICAL
 - NEVER invent external URLs like "https://arcpay.xyz/anything"
-- All navigation is within the ArcPay dashboard sidebar: **Protected Transfer**, **Group Split**, **Batch Payment**, **Payment Links**, **History**
+- All navigation is within the ArcPay dashboard sidebar: **Protected Transfer**, **Group Split**, **Batch Payment**, **Payment Links**, **Fund from Any Chain**, **History**
 - Always say: "Go to the **Protected Transfer** tab in the dashboard" — never a URL
 
 ## Features
@@ -124,6 +126,14 @@ When paid: both parties can download a PDF invoice from the receipt page.
 Register a unique on-chain name (3–30 chars). Others send to @you instead of 0x...
 Say "register username spy" or "I want to register @myname" — I'll check availability and create the transaction for you.
 
+### Fund from Any Chain (Circle Gateway)
+Move USDC you hold on Ethereum Sepolia, Avalanche Fuji, OP Sepolia, Arbitrum Sepolia, Base Sepolia, or Polygon Amoy onto Arc Testnet — no manual bridging.
+Two steps, both live in the **Fund from Any Chain** tab:
+1. **Deposit** — approve + deposit USDC you hold on a source chain into Circle's Gateway (2 wallet confirmations). This credits a unified balance; the source chain then needs to finalize the deposit (seconds up to ~19 minutes depending on chain) before it's usable.
+2. **Transfer to Arc** — sign a burn intent for your unified balance (no gas), ArcPay relays it to Circle for an instant attestation, then one wallet confirmation mints the USDC onto Arc Testnet.
+Amounts above ${GATEWAY_WARN_THRESHOLD_USDC} USDC trigger an extra confirmation step in the UI as a safety check.
+I can check your unified Gateway balance and pending deposits with tools (getGatewayBalance) so I can tell you which chain to pick and whether you're ready to move to step 2 — but I do NOT trigger the deposit/transfer transactions myself, since each step needs its own wallet chain-switch and signature that only works from that tab. Always say: "Go to the **Fund from Any Chain** tab" for the actual buttons.
+
 ### Transaction History
 All activity (transfers, groups, batches, links) visible in the **History** tab.
 
@@ -132,7 +142,9 @@ All activity (transfers, groups, batches, links) visible in the **History** tab.
 - Check ${NATIVE_SYMBOL} balance of any address (getBalance)
 - Fetch escrow, group, batch, payment link history (read-only, live on-chain data)
 - Get group contributors list
+- Check a wallet's unified Circle Gateway balance across source chains and any deposits still waiting on finality (getGatewayBalance)
 - Trigger wallet confirmation popups for: creating transfers, group payments, batch payments, payment links, username registration, claiming/refunding escrows, contributing to groups
+- For Gateway deposit/transfer-to-Arc, I only look up balances — I never trigger those transactions directly (see Fund from Any Chain above); I point the user to that tab
 
 ## What happens when you call a build tool
 The tool produces a clickable button in the chat UI. The user clicks it and their wallet popup appears. You DO trigger transactions — indirectly through the button. Always use the tools.
@@ -414,6 +426,63 @@ export async function POST(req: Request) {
         execute: async ({ amount, description }) => {
           const isAny = amount === '0' || amount.toLowerCase() === 'any';
           return { amount: isAny ? '0' : amount, description, steps: ['Go to the Payment Links tab', 'Fill description: ' + description, isAny ? 'Check Any amount' : 'Amount: ' + amount + ' ' + NATIVE_SYMBOL, 'Click Create Payment Link', 'Copy the link or download the QR code'] };
+        },
+      }),
+
+      getGatewayBalance: tool({
+        description: "Check a wallet's unified Circle Gateway USDC balance across all supported source chains (Ethereum Sepolia, Avalanche Fuji, OP Sepolia, Arbitrum Sepolia, Base Sepolia, Polygon Amoy), plus any deposits still waiting on source-chain finality. Read-only — does not trigger any transaction. Use this whenever the user asks about their Gateway/cross-chain balance or whether a deposit has landed.",
+        parameters: z.object({ address: z.string().optional().describe('Wallet address to check — omit to use the currently connected wallet') }),
+        execute: async ({ address }) => {
+          const target = address || walletAddress;
+          if (!target) return { error: 'No wallet address available — ask the user to connect their wallet first.' };
+          try {
+            const [balRes, depRes] = await Promise.all([
+              fetch(`${GATEWAY_API_BASE}/v1/balances`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: 'USDC', sources: [{ depositor: target }] }),
+              }),
+              fetch(`${GATEWAY_API_BASE}/v1/deposits`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: 'USDC', sources: [{ depositor: target }] }),
+              }),
+            ]);
+            if (!balRes.ok) return { error: `Gateway balance lookup failed (${balRes.status})` };
+            const balJson = await balRes.json().catch(() => ({}));
+            const rawBalances: { domain?: number; balance: string }[] = balJson.balances ?? [];
+            const balances = rawBalances
+              .filter((b) => parseFloat(b.balance) > 0)
+              .map((b) => ({
+                chain: GATEWAY_SOURCE_CHAINS.find((c) => c.domain === b.domain)?.label ?? `Domain ${b.domain ?? '?'}`,
+                balance: `${parseFloat(b.balance).toFixed(4)} USDC`,
+              }));
+            const total = rawBalances.reduce((s, b) => s + parseFloat(b.balance || '0'), 0);
+
+            let pending: { chain: string; amount: string }[] = [];
+            if (depRes.ok) {
+              const depJson = await depRes.json().catch(() => ({}));
+              const rawDeposits: { domain?: number; amount: string; status: string }[] = depJson.deposits ?? [];
+              pending = rawDeposits
+                .filter((d) => d.status === 'pending')
+                .map((d) => ({
+                  chain: GATEWAY_SOURCE_CHAINS.find((c) => c.domain === d.domain)?.label ?? `Domain ${d.domain ?? '?'}`,
+                  amount: `${(parseInt(d.amount) / 1_000_000).toFixed(4)} USDC`,
+                }));
+            }
+
+            return {
+              address: target,
+              totalUnifiedBalance: `${total.toFixed(4)} USDC`,
+              byChain: balances,
+              pendingFinality: pending,
+              note: pending.length > 0
+                ? 'Pending deposits are not yet part of the unified balance — they need the source chain to finalize first (can take a few seconds up to ~19 minutes).'
+                : undefined,
+            };
+          } catch {
+            return { error: 'Could not reach Circle Gateway right now — try again shortly.' };
+          }
         },
       }),
 

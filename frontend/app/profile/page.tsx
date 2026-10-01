@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { formatEther } from 'viem';
-import { useAccount, usePublicClient, useChainId } from 'wagmi';
+import { useAccount, usePublicClient } from 'wagmi';
 import { useHistory, formatPOT, EscrowRecord, GroupRecord, BatchRecord, TokenEscrowRecord, PaymentLinkRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL, GROUP_STATUS_LABEL } from '../lib/abi';
-import { shortAddress } from '../lib/wagmi';
+import { shortAddress, arcTestnet } from '../lib/wagmi';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import {
@@ -330,9 +330,10 @@ function GroupDetail({ g, myAddr, client, contractAddress }: {
 // ── Main history page ────────────────────────────────────────────────────────
 function HistoryContent() {
   const contractAddress = useContractAddress();
-  const chainId = useChainId();
+  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
+  const chainId = arcTestnet.id;
   const { address } = useAccount();
-  const client = usePublicClient();
+  const client = usePublicClient({ chainId: arcTestnet.id });
   const { escrows, tokenEscrows, groups, batches, paymentLinks, loading, refresh } = useHistory();
   const [tab, setTab] = useState<HistoryTab>('all');
 

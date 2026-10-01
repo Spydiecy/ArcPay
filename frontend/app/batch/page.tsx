@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { parseEther, formatEther } from 'viem';
-import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT, BatchRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { getContractAddress } from '../lib/wagmi';
+import { getContractAddress, arcTestnet } from '../lib/wagmi';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -132,9 +132,10 @@ function BatchCard({ b, client, contractAddress }: { b: BatchRecord; client: Ret
 // ── Main batch content ────────────────────────────────────────────────────────
 function BatchContent() {
   const contractAddress = useContractAddress();
-  const chainId = useChainId();
+  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
+  const chainId = arcTestnet.id;
   const { address } = useAccount();
-  const client = usePublicClient();
+  const client = usePublicClient({ chainId: arcTestnet.id });
   const { writeContractAsync } = useWriteContract();
   const { batches, loading: histLoading, refresh } = useHistory();
 
@@ -205,6 +206,7 @@ function BatchContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'batchTransfer', args: [addrs, amounts, remarks],
         value: totalWei,
+        chainId: arcTestnet.id,
       });
       setTxHash(hash);
       setRows([{ address: '', amount: '' }]);

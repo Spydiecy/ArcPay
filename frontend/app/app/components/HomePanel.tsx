@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { parseEther } from 'viem';
-import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useChainId, useReadContract } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { useHistory, formatPOT, EscrowRecord, GroupRecord, BatchRecord, TokenEscrowRecord, PaymentLinkRecord } from '../../hooks/useHistory';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL } from '../../lib/abi';
-import { shortAddress } from '../../lib/wagmi';
+import { shortAddress, arcTestnet } from '../../lib/wagmi';
 import { useContractAddress } from '../../hooks/useContract';
 import Toast, { ToastType } from '../../components/Toast';
 import { AppTab } from './Sidebar';
@@ -13,7 +13,7 @@ import { UsdcBadge } from '../../components/UsdcIcon';
 import {
   Lock, Users, Zap, History, ArrowRight,
   CheckCircle, RefreshCw, Copy, Check,
-  ArrowUpRight, ArrowDownLeft, Coins, Link2, CheckCircle2,
+  ArrowUpRight, ArrowDownLeft, Coins, Link2, CheckCircle2, Globe,
 } from 'lucide-react';
 
 interface UserProfile { username: string; createdAt: bigint; }
@@ -22,14 +22,16 @@ const QUICK_ACTIONS: { tab: AppTab; icon: React.ElementType; label: string }[] =
   { tab: 'protected', icon: Lock,    label: 'Protected Transfer' },
   { tab: 'group',     icon: Users,   label: 'Group Split'        },
   { tab: 'batch',     icon: Zap,     label: 'Batch Payment'      },
+  { tab: 'fund',      icon: Globe,   label: 'Fund from Any Chain' },
   { tab: 'history',   icon: History, label: 'History'            },
 ];
 
 export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) => void }) {
   const contractAddress = useContractAddress();
   const { address } = useAccount();
-  const chainId     = useChainId();
-  const client      = usePublicClient();
+  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
+  const chainId     = arcTestnet.id;
+  const client      = usePublicClient({ chainId: arcTestnet.id });
   const { escrows, tokenEscrows, groups, batches, paymentLinks, formattedBalance, loading: histLoading, refresh } = useHistory();
   const { writeContractAsync } = useWriteContract();
 
@@ -50,6 +52,7 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
     abi: PROTECTED_PAY_ABI,
     functionName: 'getUser',
     args: address ? [address] : undefined,
+    chainId: arcTestnet.id,
     query: { enabled: !!address },
   });
   const profile = (profileData && (profileData as UserProfile).username)
@@ -69,7 +72,7 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
     if (!username || username.length < 3 || username.length > 30) { t('Username must be 3–30 characters', 'error'); return; }
     setLoading(true); t('Submitting…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'registerUsername', args: [username] });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'registerUsername', args: [username], chainId: arcTestnet.id });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message : 'Failed', 'error'); setLoading(false); }
     finally { setLoading(false); }

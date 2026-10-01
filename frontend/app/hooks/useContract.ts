@@ -1,23 +1,25 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useWriteContract, useReadContract, usePublicClient, useAccount, useChainId } from 'wagmi';
+import { useWriteContract, useReadContract, usePublicClient, useAccount } from 'wagmi';
 import { parseEther } from 'viem';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { getContractAddress } from '../lib/wagmi';
+import { getContractAddress, arcTestnet } from '../lib/wagmi';
 
 export type { PROTECTED_PAY_ABI };
 
 // ── Chain-aware contract address hook ─────────────────────────────────────────
+// ProtectedPay only exists on Arc Testnet, so this is pinned to Arc's chain id
+// explicitly rather than following the wallet's ambient connected chain
+// (which can be a Gateway source chain mid-deposit — see GatewayFundPanel).
 export function useContractAddress(): `0x${string}` {
-  const chainId = useChainId();
-  return getContractAddress(chainId);
+  return getContractAddress(arcTestnet.id);
 }
 
 // ── Write hook — submit a tx and wait for inclusion ───────────────────────────
 export function useTx() {
   const { writeContractAsync } = useWriteContract();
-  const client = usePublicClient();
+  const client = usePublicClient({ chainId: arcTestnet.id });
   const contractAddress = useContractAddress();
 
   return useCallback(async (
@@ -34,6 +36,7 @@ export function useTx() {
         functionName: functionName as never,
         args: args as never,
         value,
+        chainId: arcTestnet.id,
       });
       if (client) await client.waitForTransactionReceipt({ hash });
       onSuccess?.();
@@ -49,7 +52,7 @@ export function useTx() {
 
 // ── Read hook — call a view function ─────────────────────────────────────────
 export function useQuery() {
-  const client = usePublicClient();
+  const client = usePublicClient({ chainId: arcTestnet.id });
   const { address } = useAccount();
   const contractAddress = useContractAddress();
 
@@ -74,6 +77,7 @@ export function useContractRead(functionName: string, args: unknown[] = []) {
     abi: PROTECTED_PAY_ABI,
     functionName: functionName as never,
     args: args as never,
+    chainId: arcTestnet.id,
   });
 }
 

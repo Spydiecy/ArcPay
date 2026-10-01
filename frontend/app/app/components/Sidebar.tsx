@@ -7,11 +7,11 @@ import { useAccount, useDisconnect, useBalance, useChainId, useSwitchChain } fro
 import { formatNative, shortAddress, arcTestnet } from '../../lib/wagmi';
 import {
   Lock, Users, Zap, History, ChevronLeft, ChevronRight,
-  Copy, Check, Home, Sun, Moon, LogOut, Link2, ChevronDown,
+  Copy, Check, Home, Sun, Moon, LogOut, Link2, ChevronDown, Globe,
 } from 'lucide-react';
 import { UsdcIcon } from '../../components/UsdcIcon';
 
-export type AppTab = 'home' | 'protected' | 'group' | 'batch' | 'history' | 'links';
+export type AppTab = 'home' | 'protected' | 'group' | 'batch' | 'history' | 'links' | 'fund';
 
 interface SidebarProps {
   activeTab: AppTab;
@@ -23,6 +23,7 @@ const NAV_ITEMS: { tab: AppTab; icon: React.ElementType; label: string }[] = [
   { tab: 'group',     icon: Users,   label: 'Group Split'        },
   { tab: 'batch',     icon: Zap,     label: 'Batch Payment'      },
   { tab: 'links',     icon: Link2,   label: 'Payment Links'      },
+  { tab: 'fund',      icon: Globe,   label: 'Fund from Any Chain' },
   { tab: 'history',   icon: History, label: 'History'            },
 ];
 
@@ -44,7 +45,10 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { address, connector } = useAccount();
   const { disconnect }         = useDisconnect();
   const { theme, setTheme }    = useTheme();
-  const { data: balance, refetch: refetchBalance } = useBalance({ address });
+  // Pinned to Arc Testnet explicitly (not the ambient connected chain) — the
+  // sidebar balance must always reflect Arc, even if the wallet is
+  // momentarily connected to a Gateway source chain during a deposit.
+  const { data: balance, refetch: refetchBalance } = useBalance({ address, chainId: arcTestnet.id });
   const chainId                = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
 

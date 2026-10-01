@@ -2,10 +2,10 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { parseEther } from 'viem';
-import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { shortAddress } from '../lib/wagmi';
+import { shortAddress, arcTestnet } from '../lib/wagmi';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -125,9 +125,10 @@ function GroupContributorsInline({ groupId, creator, recipient, amountPerPerson,
 
 function GroupContent() {
   const contractAddress = useContractAddress();
-  const chainId = useChainId();
+  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
+  const chainId = arcTestnet.id;
   const { address } = useAccount();
-  const client = usePublicClient();
+  const client = usePublicClient({ chainId: arcTestnet.id });
   const { writeContractAsync } = useWriteContract();
   const { groups, loading: histLoading, refresh } = useHistory();
 
@@ -176,6 +177,7 @@ function GroupContent() {
         functionName: 'createGroupPayment',
         args: [effectiveRecipient, totalWei, parseInt(participants)as unknown as number, remarks],
         value: perWei,
+        chainId: arcTestnet.id,
       });
       setTxHash(hash); t('Group created!', 'success');
       setRecipient(''); setResolvedRecipient(''); setTotalAmount(''); setRemarks('');
@@ -197,7 +199,7 @@ function GroupContent() {
   const handleContribute = useCallback(async (id: string, amtPerPerson: bigint) => {
     setLoading(true); t('Contributing…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'contributeToGroup', args: [BigInt(id)], value: amtPerPerson });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'contributeToGroup', args: [BigInt(id)], value: amtPerPerson, chainId: arcTestnet.id });
       setTxHash(hash); handleLookup();
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
@@ -206,7 +208,7 @@ function GroupContent() {
   const handleCancel = useCallback(async (id: string) => {
     setLoading(true); t('Cancelling & refunding all…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelGroupPayment', args: [BigInt(id)] });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelGroupPayment', args: [BigInt(id)], chainId: arcTestnet.id });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
@@ -215,7 +217,7 @@ function GroupContent() {
   const handleWithdraw = useCallback(async (id: string) => {
     setLoading(true); t('Withdrawing contribution…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'withdrawContribution', args: [BigInt(id)] });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'withdrawContribution', args: [BigInt(id)], chainId: arcTestnet.id });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }

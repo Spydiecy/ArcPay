@@ -213,7 +213,7 @@ export default function AgentChat() {
     initialMessages: [{
       id: 'welcome',
       role: 'assistant',
-      content: `Hey! I'm **PayBot** 👋 — your ArcPay assistant.\n\nI can help you with:\n- Protected transfers (native USDC & ERC-20 tokens)\n- Group split payments\n- Batch payments\n- Payment links & QR codes\n- Checking your transaction history\n\nJust ask in plain English — and I can trigger the wallet popup right here!`,
+      content: `Hey! I'm **PayBot** 👋 — your ArcPay assistant.\n\nI can help you with:\n- Protected transfers (native USDC & ERC-20 tokens)\n- Group split payments\n- Batch payments\n- Payment links & QR codes\n- Funding from any chain via Circle Gateway\n- Checking your transaction history\n\nJust ask in plain English — and I can trigger the wallet popup right here!`,
     }],
   });
 
@@ -236,7 +236,7 @@ export default function AgentChat() {
     'Check my history',
     'Send 0.5 USDC to @spy as escrow',
     'Create a payment link for 1 USDC',
-    'How does group split work?',
+    'Check my Gateway balance',
   ];
 
   return (

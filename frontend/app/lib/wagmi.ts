@@ -1,4 +1,7 @@
 import { createConfig, http } from 'wagmi';
+import {
+  sepolia, avalancheFuji, optimismSepolia, arbitrumSepolia, baseSepolia, polygonAmoy,
+} from 'wagmi/chains';
 import { injected, metaMask, coinbaseWallet } from 'wagmi/connectors';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import {
@@ -81,15 +84,31 @@ const connectors = WC_PROJECT_ID
     )
   : [injected(), metaMask(), coinbaseWallet({ appName: 'ArcPay' })];
 
+// ── Gateway source-chain testnets ─────────────────────────────────────────────
+// Added so the wallet can switch to a Gateway source chain to run the
+// approve()+deposit() flow in GatewayFundPanel.tsx (depositing USDC into a
+// GatewayWallet contract before it can be transferred to Arc). Arc Testnet
+// remains the default/primary chain everywhere else in the app — these are
+// additive, not a replacement for the single-chain-by-default UX.
+export const gatewaySourceWagmiChains = [
+  sepolia, avalancheFuji, optimismSepolia, arbitrumSepolia, baseSepolia, polygonAmoy,
+] as const;
+
 // ── Wagmi config ──────────────────────────────────────────────────────────────
 // `chains` is an array on purpose (not a single chain) so the network switcher
 // keeps working as-is once more networks are added here in the future.
 export const wagmiConfig = createConfig({
-  chains: [arcTestnet],
+  chains: [arcTestnet, ...gatewaySourceWagmiChains],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connectors: connectors as any,
   transports: {
     [arcTestnet.id]: http('https://rpc.testnet.arc.network'),
+    [sepolia.id]: http(),
+    [avalancheFuji.id]: http(),
+    [optimismSepolia.id]: http(),
+    [arbitrumSepolia.id]: http(),
+    [baseSepolia.id]: http(),
+    [polygonAmoy.id]: http(),
   },
   ssr: true,
 });
