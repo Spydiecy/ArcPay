@@ -11,20 +11,12 @@ import Toast, { ToastType } from '../../components/Toast';
 import { AppTab } from './Sidebar';
 import { UsdcBadge } from '../../components/UsdcIcon';
 import {
-  Lock, Users, Zap, History, ArrowRight,
+  Users, Zap,
   CheckCircle, RefreshCw, Copy, Check,
-  ArrowUpRight, ArrowDownLeft, Coins, Link2, CheckCircle2, Globe,
+  ArrowUpRight, ArrowDownLeft, Coins, Link2, CheckCircle2,
 } from 'lucide-react';
 
 interface UserProfile { username: string; createdAt: bigint; }
-
-const QUICK_ACTIONS: { tab: AppTab; icon: React.ElementType; label: string }[] = [
-  { tab: 'protected', icon: Lock,    label: 'Protected Transfer' },
-  { tab: 'group',     icon: Users,   label: 'Group Split'        },
-  { tab: 'batch',     icon: Zap,     label: 'Batch Payment'      },
-  { tab: 'fund',      icon: Globe,   label: 'Fund from Any Chain' },
-  { tab: 'history',   icon: History, label: 'History'            },
-];
 
 export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) => void }) {
   const contractAddress = useContractAddress();
@@ -165,25 +157,6 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
             <p style={{ fontSize: 12, color: 'var(--on-primary-container)', opacity: 0.55, marginTop: 6 }}>Available</p>
           </div>
         </div>
-      </div>
-
-      {/* Quick actions */}
-      <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--foreground-subtle)', textTransform: 'uppercase', marginBottom: 12 }}>Quick Actions</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
-        {QUICK_ACTIONS.map(({ tab, icon: Icon, label }) => (
-          <button key={tab} onClick={() => onTabChange(tab)} style={{ padding: '18px 16px', borderRadius: 14, textAlign: 'left', background: 'var(--surface-card)', border: '1px solid var(--border)', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', flexDirection: 'column', gap: 12 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--primary)'; (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'; }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ width: 34, height: 34, borderRadius: 9, background: 'var(--surface-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon size={16} color="var(--primary)" />
-              </div>
-              <ArrowRight size={13} color="var(--foreground-subtle)" />
-            </div>
-            <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{label}</p>
-          </button>
-        ))}
       </div>
 
       {/* Recent activity */}

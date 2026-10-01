@@ -16,7 +16,7 @@ ArcPay puts the smart contract in charge instead of people.
 
 ## What We Built
 
-ArcPay is a payment infrastructure layer built as an EVM smart contract deployed on Arc Testnet. Seven payment primitives that give users real protection:
+ArcPay is a payment infrastructure layer built as an EVM smart contract deployed on Arc Testnet, plus a cross-chain funding layer on top. Eight payment primitives that give users real protection:
 
 ### 🔒 Protected Transfer (Native + ERC-20)
 Lock funds in a smart contract. The recipient claims when ready. If they don't — you get it back. Works for USDC (Arc's native gas and settlement currency) and any ERC-20 token. No escrow service, no third party. The contract is the escrow.
@@ -33,8 +33,11 @@ Create a shareable link or QR code for any payment — fixed amount or open amou
 ### 🌐 Username Registry
 Addresses are 42 characters of anxiety. Register a human-readable username on-chain. Anyone can resolve @yourname to your address instantly. Works across all features.
 
+### 🔀 Fund from Any Chain (Circle Gateway)
+Already holding USDC on Ethereum, Base, Arbitrum, Optimism, Avalanche, or Polygon? No need to bridge manually first. Deposit into Circle's Gateway from the source chain, then sign a transfer request — Circle relays an attestation and you mint the USDC directly into your Arc Testnet balance, ready to fund a protected transfer, group split, or batch payment. Testnet-only for now, with a built-in safety-threshold warning before signing large transfers.
+
 ### 🤖 PayBot — AI Payment Assistant
-Ask PayBot anything in plain English. It reads your on-chain history, resolves usernames, explains features, and — most importantly — executes real transactions directly from the chat. Say "send 1 USDC to @alice as escrow" and a wallet confirmation popup appears instantly. Powered by Mistral AI via Vercel AI SDK.
+Ask PayBot anything in plain English. It reads your on-chain history, resolves usernames, checks your Gateway balance across chains, explains features, and — most importantly — executes real transactions directly from the chat. Say "send 1 USDC to @alice as escrow" and a wallet confirmation popup appears instantly. Powered by Mistral AI via Vercel AI SDK.
 
 ### 📜 Transaction History
 Full on-chain history across all features — protected transfers, token escrows, group splits, batch payments, and payment links — with expandable details, copyable addresses, username resolution, and timestamps.
@@ -81,6 +84,8 @@ Most "batch payment" tools send multiple transactions. ArcPay's batch is a singl
 
 Most "group payment" flows require someone to collect money and then pay out. ArcPay's group split holds funds in the contract until the threshold is met, then releases automatically. Nobody can run with the money.
 
+Most payment apps that support "multiple chains" mean you have to manually bridge first, on a separate site, before you can use your funds. ArcPay's Gateway integration does the bridging step for you — deposit once, sign a transfer, and the USDC is usable on Arc immediately.
+
 ---
 
 ## Security
@@ -104,6 +109,7 @@ Most "group payment" flows require someone to collect money and then pay out. Ar
 | Wallet | RainbowKit v2 (MetaMask, Rainbow, WalletConnect, Coinbase, Trust) |
 | Chain SDK | wagmi v2 + viem v2 |
 | AI Assistant | PayBot — Mistral Large via Vercel AI SDK with tool-calling |
+| Cross-Chain Funding | Circle Gateway (testnet) — EIP-712 burn intents, attestation relay, on-chain mint |
 | Invoice | Canvas API — PDF receipts, zero dependencies |
 | Styling | CSS custom properties, dark/light theme |
 
@@ -117,7 +123,8 @@ Most "group payment" flows require someone to collect money and then pay out. Ar
 - ✅ Atomic batch transfers — one tx, multiple recipients
 - ✅ Payment links with QR codes and downloadable PDF invoices
 - ✅ On-chain username registry with @mention resolution
-- ✅ PayBot AI — natural language interface, executes real transactions from chat
+- ✅ Fund from Any Chain — Circle Gateway cross-chain USDC funding (6+ source chains)
+- ✅ PayBot AI — natural language interface, executes real transactions from chat, checks Gateway balances
 - ✅ Full transaction history across all feature types
 - ✅ Live USDC balance display
 - ✅ Network selector — ready for additional networks beyond Arc Testnet

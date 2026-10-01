@@ -57,28 +57,35 @@ const FEATURES = [
     href: '/app',
   },
   {
-    num: '06', tag: 'PAYBOT AI', icon: Bot,
+    num: '06', tag: 'FUND FROM ANY CHAIN', icon: Globe,
+    title: 'Bring USDC from any chain, no manual bridging.',
+    desc: 'Deposit USDC from Ethereum, Base, Arbitrum, Optimism, Avalanche, or Polygon into Circle Gateway, then sign a transfer to mint it straight into your Arc Testnet balance — ready to fund any ArcPay feature.',
+    stat: '6+', statLabel: 'SOURCE CHAINS',
+    href: '/app',
+  },
+  {
+    num: '07', tag: 'PAYBOT AI', icon: Bot,
     title: 'Talk to your wallet in plain English.',
     desc: 'Ask PayBot to send funds, check history, or create payment links. It executes real on-chain transactions directly from the chat — no page navigation needed.',
     stat: 'AI', statLabel: 'POWERED',
     href: '/app',
   },
   {
-    num: '07', tag: 'IDENTITY', icon: Globe,
+    num: '08', tag: 'IDENTITY', icon: Users,
     title: 'Send to names, not addresses.',
     desc: 'Register a human-readable username on-chain. Anyone can resolve @yourname to your address instantly. Works across all features.',
     stat: '@you', statLabel: 'ON-CHAIN',
     href: '/app',
   },
   {
-    num: '08', tag: 'SECURITY', icon: ShieldCheck,
+    num: '09', tag: 'SECURITY', icon: ShieldCheck,
     title: 'Smart contracts, not promises.',
     desc: 'No admin key, no upgrade mechanism, no pause function. Every payment is enforced by EVM code on Arc Testnet.',
     stat: '0', statLabel: 'MIDDLEMEN',
     href: '/app',
   },
   {
-    num: '09', tag: 'SIMPLICITY', icon: Sparkles,
+    num: '10', tag: 'SIMPLICITY', icon: Sparkles,
     title: 'Web3 payments that actually make sense.',
     desc: 'No seed phrases in forms. No manual gas estimation. Connect your wallet, pick a feature, and go.',
     stat: '<1min', statLabel: 'TO START',
@@ -108,8 +115,12 @@ const FAQS = [
     a: 'Create a payment link with a description and optional fixed amount. Share the URL or QR code with anyone. When they pay, both parties can download a PDF invoice with the full receipt including transaction hash.',
   },
   {
+    q: 'How does "Fund from Any Chain" work?',
+    a: 'ArcPay integrates Circle Gateway so you can use USDC you already hold on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Optimism Sepolia, Avalanche Fuji, or Polygon Amoy without bridging manually first. Deposit into Gateway from the source chain, then sign a transfer request — Circle relays an attestation and you mint the USDC directly into your Arc Testnet balance, ready to fund any ArcPay feature.',
+  },
+  {
     q: 'What is PayBot?',
-    a: 'PayBot is an AI assistant built into the dashboard. You can ask it in plain English — "send 1 USDC to @alice as escrow" — and it will trigger the wallet confirmation popup instantly. It can also check your history, resolve usernames, and explain any feature.',
+    a: 'PayBot is an AI assistant built into the dashboard. You can ask it in plain English — "send 1 USDC to @alice as escrow" — and it will trigger the wallet confirmation popup instantly. It can also check your history, resolve usernames, check your Gateway balance across chains, and explain any feature.',
   },
   {
     q: 'What is the username registry?',
@@ -196,7 +207,7 @@ export default function HomePage() {
               <span className="text-gradient" style={{ display: 'block' }}>Built on Arc</span>
             </h1>
             <p style={{ fontSize: 18, lineHeight: 1.7, color: 'var(--foreground-muted)', maxWidth: 520, margin: '0 auto 40px' }}>
-              Trustless escrow, group crowdfunding, and batch transfers — secured by EVM smart contracts on Arc Testnet. No intermediaries. No trust required.
+              Trustless escrow, group crowdfunding, batch transfers, and cross-chain funding via Circle Gateway — secured by EVM smart contracts on Arc Testnet. No intermediaries. No trust required.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
               <Link href="/app" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 28px', borderRadius: 999, background: 'var(--primary)', color: 'var(--primary-fg)', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}
