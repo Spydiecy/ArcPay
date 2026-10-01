@@ -2,6 +2,8 @@
 
 **Trustless payment infrastructure on Arc Testnet. No middlemen. No broken promises.**
 
+📊 [Pitch Deck](https://canva.link/h8tqd13woyj1ycp) · 🐦 [Follow on X](https://x.com/arcpay_)
+
 ---
 
 ## The Problem
@@ -134,4 +136,4 @@ Most payment apps that support "multiple chains" mean you have to manually bridg
 
 ---
 
-**[Follow on X](https://x.com/arcpay) · [View on GitHub](https://github.com/Spydiecy/ArcPay)**
+**[Follow on X](https://x.com/arcpay_) · [View on GitHub](https://github.com/Spydiecy/ArcPay) · [Pitch Deck](https://canva.link/h8tqd13woyj1ycp)**
