@@ -5,7 +5,8 @@ import { parseEther } from 'viem';
 import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { shortAddress, arcTestnet } from '../lib/wagmi';
+import { shortAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -37,7 +38,7 @@ function AddrPill({ address, myAddr, client }: { address: string; myAddr: string
     client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUser', args: [address as `0x${string}`] })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((u: any) => { if (u?.username) setUname(u.username); }).catch(() => {});
-  }, [address, client]);
+  }, [address, client, contractAddress]);
   return (
     <button onClick={() => { navigator.clipboard.writeText(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
       title={address}
@@ -68,7 +69,7 @@ function GroupContributorsInline({ groupId, creator, recipient, amountPerPerson,
       setContributors(addrs);
     } catch { setContributors([]); }
     finally { setFetching(false); }
-  }, [groupId, client, contributors]);
+  }, [groupId, client, contributors, contractAddress]);
 
   const toggle = () => { if (!open) load(); setOpen(o => !o); };
 
@@ -125,10 +126,10 @@ function GroupContributorsInline({ groupId, creator, recipient, amountPerPerson,
 
 function GroupContent() {
   const contractAddress = useContractAddress();
-  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
-  const chainId = arcTestnet.id;
+  // Follows the ACTIVE ArcPay network (Mainnet / Testnet) — see useArcNetwork.
+  const { chainId } = useArcNetwork();
   const { address } = useAccount();
-  const client = usePublicClient({ chainId: arcTestnet.id });
+  const client = usePublicClient({ chainId });
   const { writeContractAsync } = useWriteContract();
   const { groups, loading: histLoading, refresh } = useHistory();
 
@@ -162,7 +163,7 @@ function GroupContent() {
       if (addr && addr !== '0x0000000000000000000000000000000000000000') { setResolvedRecipient(addr); t(`Resolved @${uname}`, 'success'); }
       else { setResolvedRecipient(''); t(`@${uname} not found`, 'error'); }
     } catch { setResolvedRecipient(''); }
-  }, [client]);
+  }, [client, contractAddress]);
 
   const effectiveRecipient = (resolvedRecipient || recipient) as `0x${string}`;
 
@@ -177,13 +178,13 @@ function GroupContent() {
         functionName: 'createGroupPayment',
         args: [effectiveRecipient, totalWei, parseInt(participants)as unknown as number, remarks],
         value: perWei,
-        chainId: arcTestnet.id,
+        chainId,
       });
       setTxHash(hash); t('Group created!', 'success');
       setRecipient(''); setResolvedRecipient(''); setTotalAmount(''); setRemarks('');
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [effectiveRecipient, totalAmount, participants, remarks, perPerson, writeContractAsync]);
+  }, [effectiveRecipient, totalAmount, participants, remarks, perPerson, writeContractAsync, contractAddress, chainId]);
 
   const handleLookup = useCallback(async () => {
     if (!contributeId) return;
@@ -194,34 +195,34 @@ function GroupContent() {
       if (!data || data.creator === '0x0000000000000000000000000000000000000000') t('Group not found', 'error');
     } catch { t('Lookup failed', 'error'); }
     finally { setLookupLoading(false); }
-  }, [contributeId, client]);
+  }, [contributeId, client, contractAddress]);
 
   const handleContribute = useCallback(async (id: string, amtPerPerson: bigint) => {
     setLoading(true); t('Contributing…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'contributeToGroup', args: [BigInt(id)], value: amtPerPerson, chainId: arcTestnet.id });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'contributeToGroup', args: [BigInt(id)], value: amtPerPerson, chainId });
       setTxHash(hash); handleLookup();
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync, handleLookup]);
+  }, [writeContractAsync, handleLookup, contractAddress, chainId]);
 
   const handleCancel = useCallback(async (id: string) => {
     setLoading(true); t('Cancelling & refunding all…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelGroupPayment', args: [BigInt(id)], chainId: arcTestnet.id });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelGroupPayment', args: [BigInt(id)], chainId });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const handleWithdraw = useCallback(async (id: string) => {
     setLoading(true); t('Withdrawing contribution…', 'loading');
     try {
-      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'withdrawContribution', args: [BigInt(id)], chainId: arcTestnet.id });
+      const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'withdrawContribution', args: [BigInt(id)], chainId });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const pct = contributeGroup ? Math.round((Number(contributeGroup.contributedCount) / Number(contributeGroup.numParticipants)) * 100) : 0;
   const groupStatusLabel = (s: number) => ['Open', 'Completed', 'Cancelled'][s] ?? 'Unknown';

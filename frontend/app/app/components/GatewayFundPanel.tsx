@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useAccount, useSwitchChain } from 'wagmi';
+import { useArcNetwork } from '../../hooks/useArcNetwork';
+import { ARC_NETWORKS } from '../../lib/networks';
 import { useGatewayBalance } from '../../hooks/useGatewayBalance';
 import { useGatewayTransfer } from '../../hooks/useGatewayTransfer';
 import { useGatewayDeposit } from '../../hooks/useGatewayDeposit';
@@ -49,7 +52,7 @@ const DEPOSIT_PHASE_LABEL: Record<string, string> = {
 
 type PanelMode = 'deposit' | 'transfer';
 
-export default function GatewayFundPanel({ onTabChange }: GatewayFundPanelProps) {
+function GatewayFundPanelInner({ onTabChange }: GatewayFundPanelProps) {
   const { balances, pendingDeposits, total, loading: balanceLoading, error: balanceError, refresh: refreshBalance } = useGatewayBalance();
   const {
     phase, errorMsg, failedStep, mintTxHash, mintConfirmed,
@@ -562,6 +565,54 @@ export default function GatewayFundPanel({ onTabChange }: GatewayFundPanelProps)
       </div>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+    </div>
+  );
+}
+
+// ── Environment gate ──────────────────────────────────────────────────────────
+// Circle Gateway is wired to its testnet here (testnet Gateway API, testnet
+// source-chain USDC, Arc Testnet as the mint destination). On Arc Mainnet the
+// flow would be pointed at the wrong contracts/API and real funds, so we don't
+// render it at all — the inner panel (and every Gateway hook in it) only
+// mounts on a network that supports it.
+export default function GatewayFundPanel(props: GatewayFundPanelProps) {
+  const { network, setNetwork } = useArcNetwork();
+  const { address, chainId: walletChainId } = useAccount();
+  const { switchChain, isPending } = useSwitchChain();
+
+  if (network.gatewaySupported) return <GatewayFundPanelInner {...props} />;
+
+  const testnet = ARC_NETWORKS.testnet;
+  const goTestnet = () => {
+    setNetwork('testnet');
+    if (address && walletChainId !== testnet.id) switchChain({ chainId: testnet.id });
+  };
+
+  return (
+    <div style={{ padding: '32px 36px', height: '100%', boxSizing: 'border-box' }}>
+      <div style={{ marginBottom: 24 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--primary)', textTransform: 'uppercase', marginBottom: 6 }}>ArcPay</p>
+        <h1 style={{ fontSize: 32, fontWeight: 800, color: 'var(--foreground)', letterSpacing: '-1px' }}>Fund from Any Chain</h1>
+      </div>
+      <div style={{ maxWidth: 520, padding: 28, borderRadius: 14, background: 'var(--surface-card)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <Globe size={18} color="var(--primary)" />
+          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--foreground)' }}>Testnet only for now</span>
+        </div>
+        <p style={{ fontSize: 14, color: 'var(--foreground-muted)', lineHeight: 1.65, marginBottom: 20 }}>
+          Cross-chain funding through Circle Gateway is currently available on <strong style={{ color: 'var(--foreground)' }}>{testnet.name}</strong> only.
+          You&apos;re on <strong style={{ color: network.color }}>{network.name}</strong>, so this tab is paused to keep real funds out of a flow that isn&apos;t live yet.
+          Everything else in ArcPay works on both networks.
+        </p>
+        <button
+          onClick={goTestnet}
+          disabled={isPending}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 999, border: 'none', background: 'var(--primary)', color: 'var(--primary-fg)', fontSize: 14, fontWeight: 700, cursor: isPending ? 'not-allowed' : 'pointer', opacity: isPending ? 0.7 : 1 }}
+        >
+          {isPending && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+          Switch to {testnet.name} <ArrowRight size={15} />
+        </button>
+      </div>
     </div>
   );
 }

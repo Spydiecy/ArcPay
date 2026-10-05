@@ -5,7 +5,8 @@ import { parseEther, formatEther } from 'viem';
 import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT, BatchRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { getContractAddress, arcTestnet } from '../lib/wagmi';
+import { getContractAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -132,10 +133,10 @@ function BatchCard({ b, client, contractAddress }: { b: BatchRecord; client: Ret
 // ── Main batch content ────────────────────────────────────────────────────────
 function BatchContent() {
   const contractAddress = useContractAddress();
-  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
-  const chainId = arcTestnet.id;
+  // Follows the ACTIVE ArcPay network (Mainnet / Testnet) — see useArcNetwork.
+  const { chainId } = useArcNetwork();
   const { address } = useAccount();
-  const client = usePublicClient({ chainId: arcTestnet.id });
+  const client = usePublicClient({ chainId });
   const { writeContractAsync } = useWriteContract();
   const { batches, loading: histLoading, refresh } = useHistory();
 
@@ -171,7 +172,7 @@ function BatchContent() {
         t(`Resolved @${uname}`, 'success');
       } else t(`@${uname} not found`, 'error');
     } catch { t('Resolution failed', 'error'); }
-  }, [client]);
+  }, [client, contractAddress]);
 
   const total = rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
 
@@ -206,7 +207,7 @@ function BatchContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'batchTransfer', args: [addrs, amounts, remarks],
         value: totalWei,
-        chainId: arcTestnet.id,
+        chainId,
       });
       setTxHash(hash);
       setRows([{ address: '', amount: '' }]);
@@ -216,7 +217,7 @@ function BatchContent() {
     } finally {
       setLoading(false);
     }
-  }, [rows, remarks, writeContractAsync, client]);
+  }, [rows, remarks, writeContractAsync, client, contractAddress, chainId]);
 
   return (
     <div style={{ padding: '32px 36px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>

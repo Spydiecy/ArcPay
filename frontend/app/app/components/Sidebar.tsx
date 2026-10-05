@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTheme } from 'next-themes';
 import { useAccount, useDisconnect, useBalance, useChainId, useSwitchChain } from 'wagmi';
-import { formatNative, shortAddress, arcTestnet } from '../../lib/wagmi';
+import { formatNative, shortAddress } from '../../lib/wagmi';
+import { ARC_NETWORK_LIST, type ArcNetworkKey } from '../../lib/networks';
+import { useArcNetwork } from '../../hooks/useArcNetwork';
 import {
   Lock, Users, Zap, History, ChevronLeft, ChevronRight,
-  Copy, Check, Home, Sun, Moon, LogOut, Link2, ChevronDown, Globe,
+  Copy, Check, Home, Sun, Moon, LogOut, Link2, ChevronDown, Globe, ShieldAlert,
 } from 'lucide-react';
 import { UsdcIcon } from '../../components/UsdcIcon';
 
@@ -27,29 +29,16 @@ const NAV_ITEMS: { tab: AppTab; icon: React.ElementType; label: string }[] = [
   { tab: 'history',   icon: History, label: 'History'            },
 ];
 
-// Only Arc Testnet is live right now — this list (and the dropdown UI below)
-// is kept in place so additional networks (e.g. Arc Mainnet) can be added
-// later without reworking the switcher.
-const NETWORKS = [
-  {
-    chain: arcTestnet,
-    label: 'Testnet',
-    badge: 'TEST',
-    color: '#F59E0B',
-    bg: 'rgba(245,158,11,0.1)',
-    border: 'rgba(245,158,11,0.3)',
-  },
-];
-
 export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const { address, connector } = useAccount();
   const { disconnect }         = useDisconnect();
   const { theme, setTheme }    = useTheme();
-  // Pinned to Arc Testnet explicitly (not the ambient connected chain) — the
-  // sidebar balance must always reflect Arc, even if the wallet is
-  // momentarily connected to a Gateway source chain during a deposit.
-  const { data: balance, refetch: refetchBalance } = useBalance({ address, chainId: arcTestnet.id });
-  const chainId                = useChainId();
+  // The active ArcPay environment (Mainnet / Testnet) — NOT the wallet's ambient
+  // chain. The sidebar balance always reflects the selected Arc network, even if
+  // the wallet is momentarily on a Gateway source chain during a deposit.
+  const { network: currentNetwork, key: networkKey, setNetwork } = useArcNetwork();
+  const { data: balance, refetch: refetchBalance } = useBalance({ address, chainId: currentNetwork.id });
+  const chainId                = useChainId(); // the wallet's chain
   const { switchChain, isPending: isSwitching } = useSwitchChain();
 
   const [collapsed,        setCollapsed]        = useState(false);
@@ -58,7 +47,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   const [networkOpen,      setNetworkOpen]      = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
-  useEffect(() => { if (address) refetchBalance(); }, [address, refetchBalance]);
+  useEffect(() => { if (address) refetchBalance(); }, [address, currentNetwork.id, refetchBalance]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -77,12 +66,16 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const currentNetwork = NETWORKS.find(n => n.chain.id === chainId) ?? NETWORKS[0];
-
-  const handleNetworkSwitch = (targetChainId: number) => {
+  // Picking a network sets the ArcPay environment first (so every page, the
+  // balance and PayBot flip immediately), then asks the wallet to follow. If the
+  // wallet rejects the switch, the "wrong network" banner stays up with a retry.
+  const handleNetworkSwitch = (key: ArcNetworkKey) => {
     setNetworkOpen(false);
-    if (targetChainId !== chainId) {
-      switchChain({ chainId: targetChainId });
+    const target = ARC_NETWORK_LIST.find(n => n.key === key);
+    if (!target) return;
+    setNetwork(key);
+    if (address && target.id !== chainId) {
+      switchChain({ chainId: target.id });
     }
   };
 
@@ -121,13 +114,13 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {collapsed ? (
           /* Collapsed: show chain logo */
           <div
-            title={`Arc ${currentNetwork.label} — expand to switch`}
+            title={`${currentNetwork.name} — expand to switch`}
             style={{ display: 'flex', justifyContent: 'center' }}
           >
             <img
               src="/chain/arc.png"
-              alt="Arc Testnet"
-              style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', display: 'block', margin: '2px auto' }}
+              alt={currentNetwork.name}
+              style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover', display: 'block', margin: '2px auto', boxShadow: `0 0 0 2px ${currentNetwork.color}` }}
               onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
             />
           </div>
@@ -153,7 +146,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
               />
               <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: currentNetwork.color, textAlign: 'left' }}>
-                {isSwitching ? 'Switching…' : `Arc ${currentNetwork.label}`}
+                {isSwitching ? 'Switching…' : currentNetwork.name}
               </span>
               <ChevronDown
                 size={12}
@@ -173,12 +166,12 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                   boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
                 }}
               >
-                {NETWORKS.map(net => {
-                  const isActive = net.chain.id === chainId;
+                {ARC_NETWORK_LIST.map(net => {
+                  const isActive = net.key === networkKey;
                   return (
                     <button
-                      key={net.chain.id}
-                      onClick={() => handleNetworkSwitch(net.chain.id)}
+                      key={net.id}
+                      onClick={() => handleNetworkSwitch(net.key)}
                       style={{
                         width: '100%', display: 'flex', alignItems: 'center', gap: 10,
                         padding: '10px 12px', border: 'none', cursor: 'pointer',
@@ -197,25 +190,36 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                       />
                       <div style={{ flex: 1, textAlign: 'left' }}>
                         <p style={{ fontSize: 12, fontWeight: 600, color: isActive ? net.color : 'var(--foreground)', lineHeight: 1.2 }}>
-                          Arc {net.label}
+                          {net.name}
                         </p>
                         <p style={{ fontSize: 10, color: 'var(--foreground-subtle)', lineHeight: 1.2, marginTop: 1 }}>
-                          Chain ID {net.chain.id}
+                          Chain ID {net.id}
                         </p>
                       </div>
-                      {isActive && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                          background: net.color, color: '#fff', letterSpacing: 0.5,
-                        }}>
-                          ACTIVE
-                        </span>
-                      )}
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+                        background: isActive ? net.color : 'transparent',
+                        color: isActive ? '#fff' : net.color,
+                        border: `1px solid ${net.color}`,
+                        letterSpacing: 0.5,
+                      }}>
+                        {isActive ? 'ACTIVE' : net.badge}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Mainnet moves real USDC and transactions are irreversible — say so, always visible */}
+        {!collapsed && !currentNetwork.isTestnet && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginTop: 8, padding: '7px 9px', borderRadius: 8, background: currentNetwork.bg, border: `1px solid ${currentNetwork.border}` }}>
+            <ShieldAlert size={12} color={currentNetwork.color} style={{ flexShrink: 0, marginTop: 1 }} />
+            <p style={{ fontSize: 10.5, lineHeight: 1.4, color: 'var(--foreground-muted)' }}>
+              Live network — transactions use <strong style={{ color: 'var(--foreground)' }}>real USDC</strong> and can&apos;t be undone.
+            </p>
           </div>
         )}
       </div>

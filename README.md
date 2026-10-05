@@ -1,6 +1,6 @@
 # ArcPay: The Trust Layer for Crypto Payments
 
-**Trustless payment infrastructure on Arc Testnet. No middlemen. No broken promises.**
+**Trustless payment infrastructure on Arc Mainnet and Arc Testnet. No middlemen. No broken promises.**
 
 📊 [Pitch Deck](https://canva.link/h8tqd13woyj1ycp) · 🐦 [Follow on X](https://x.com/arcpay_)
 
@@ -18,7 +18,7 @@ ArcPay puts the smart contract in charge instead of people.
 
 ## What We Built
 
-ArcPay is a payment infrastructure layer built as an EVM smart contract deployed on Arc Testnet, plus a cross-chain funding layer on top. Eight payment primitives that give users real protection:
+ArcPay is a payment infrastructure layer built as an EVM smart contract deployed on Arc Mainnet and Arc Testnet, plus a cross-chain funding layer on top. Eight payment primitives that give users real protection:
 
 ### 🔒 Protected Transfer (Native + ERC-20)
 Lock funds in a smart contract. The recipient claims when ready. If they don't — you get it back. Works for USDC (Arc's native gas and settlement currency) and any ERC-20 token. No escrow service, no third party. The contract is the escrow.
@@ -36,7 +36,7 @@ Create a shareable link or QR code for any payment — fixed amount or open amou
 Addresses are 42 characters of anxiety. Register a human-readable username on-chain. Anyone can resolve @yourname to your address instantly. Works across all features.
 
 ### 🔀 Fund from Any Chain (Circle Gateway)
-Already holding USDC on Ethereum, Base, Arbitrum, Optimism, Avalanche, or Polygon? No need to bridge manually first. Deposit into Circle's Gateway from the source chain, then sign a transfer request — Circle relays an attestation and you mint the USDC directly into your Arc Testnet balance, ready to fund a protected transfer, group split, or batch payment. Testnet-only for now, with a built-in safety-threshold warning before signing large transfers.
+Already holding USDC on Ethereum, Base, Arbitrum, Optimism, Avalanche, or Polygon? No need to bridge manually first. Deposit into Circle's Gateway from the source chain, then sign a transfer request — Circle relays an attestation and you mint the USDC directly into your Arc Testnet balance, ready to fund a protected transfer, group split, or batch payment. Testnet-only for now (it is paused on Arc Mainnet), with a built-in safety-threshold warning before signing large transfers.
 
 ### 🤖 PayBot — AI Payment Assistant
 Ask PayBot anything in plain English. It reads your on-chain history, resolves usernames, checks your Gateway balance across chains, explains features, and — most importantly — executes real transactions directly from the chat. Say "send 1 USDC to @alice as escrow" and a wallet confirmation popup appears instantly. Powered by Mistral AI via Vercel AI SDK.
@@ -46,22 +46,22 @@ Full on-chain history across all features — protected transfers, token escrows
 
 ---
 
-## Deployed on Arc Testnet
+## Deployed on Arc Mainnet + Arc Testnet
 
-| Property | Value |
-|---|---|
-| Contract Address | `0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6` |
-| Network | Arc Testnet |
-| Chain ID | `5042002` |
-| RPC | `https://rpc.testnet.arc.network` |
-| Explorer | [testnet.arcscan.app](https://testnet.arcscan.app) |
-| Gas Token | USDC |
+| Property | Arc Mainnet | Arc Testnet |
+|---|---|---|
+| Contract Address | `0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6` | `0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6` |
+| Chain ID | `5042` | `5042002` |
+| RPC | `https://rpc.mainnet.arc.io` | `https://rpc.testnet.arc.network` |
+| Explorer | [explorer.arc.io](https://explorer.arc.io) | [testnet.arcscan.app](https://testnet.arcscan.app) |
+| Gas Token | USDC | USDC |
+| Funds | Real USDC, irreversible | Free test USDC |
 
-Arc is currently testnet-only — there is no mainnet yet. The app ships with a network switcher in the sidebar so additional networks (like an eventual Arc Mainnet) can be added without reworking the UI.
+Switch between the two at any time with the network switcher in the app sidebar. Mainnet moves real USDC, so try new flows on Testnet first.
 
 ---
 
-## Why Arc Testnet
+## Why Arc
 
 Arc is an EVM-compatible Layer-1 blockchain purpose-built for stablecoin finance, using USDC as its native gas and settlement currency instead of a volatile token. ArcPay runs natively on Arc because:
 
@@ -74,7 +74,11 @@ Arc is an EVM-compatible Layer-1 blockchain purpose-built for stablecoin finance
 
 ## Network Selector
 
-The dashboard includes a network selector in the sidebar. Right now Arc Testnet is the only live network, but the switcher UI is kept in place for when more networks (e.g. Arc Mainnet) come online — the contract address updates automatically based on the selected network.
+The dashboard sidebar has a network switcher for **Arc Mainnet** and **Arc Testnet**. Picking a network re-points the whole app at once: contract address, balances, history, payment links, invoices, and PayBot. It also asks your wallet to switch chains, and if you change networks from inside your wallet, ArcPay follows. A banner appears if your wallet and ArcPay ever disagree.
+
+- **Default:** new visitors land on Testnet (so nobody touches real funds by accident). Your last choice is remembered. Set `NEXT_PUBLIC_DEFAULT_NETWORK=mainnet` to change the default.
+- **Payment links** embed their network (`/pay/<id>?network=mainnet`), so a link always opens on the chain it was created on. Older links without the parameter are still found on either network.
+- **Fund from Any Chain** (Circle Gateway) is Testnet-only and shows a notice on Mainnet.
 
 ---
 
@@ -105,12 +109,12 @@ Most payment apps that support "multiple chains" mean you have to manually bridg
 | Layer | Technology |
 |---|---|
 | Smart Contract | Solidity 0.8.24 (EVM) |
-| Blockchain | Arc Testnet (Chain ID: 5042002) |
+| Blockchain | Arc Mainnet (5042) + Arc Testnet (5042002) |
 | Gas Token | USDC |
 | Frontend | Next.js 16, TypeScript |
 | Wallet | RainbowKit v2 (MetaMask, Rainbow, WalletConnect, Coinbase, Trust) |
 | Chain SDK | wagmi v2 + viem v2 |
-| AI Assistant | PayBot — Mistral Large via Vercel AI SDK with tool-calling |
+| AI Assistant | PayBot — Ministral 8B (`ministral-8b-latest`) via Vercel AI SDK with tool-calling |
 | Cross-Chain Funding | Circle Gateway (testnet) — EIP-712 burn intents, attestation relay, on-chain mint |
 | Invoice | Canvas API — PDF receipts, zero dependencies |
 | Styling | CSS custom properties, dark/light theme |
@@ -129,7 +133,7 @@ Most payment apps that support "multiple chains" mean you have to manually bridg
 - ✅ PayBot AI — natural language interface, executes real transactions from chat, checks Gateway balances
 - ✅ Full transaction history across all feature types
 - ✅ Live USDC balance display
-- ✅ Network selector — ready for additional networks beyond Arc Testnet
+- ✅ Arc Mainnet + Arc Testnet with a one-click network switcher
 - ✅ Multi-wallet support via RainbowKit
 - ✅ Light and dark mode
 - ✅ Mobile responsive

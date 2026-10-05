@@ -3,7 +3,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAccount, useBalance, usePublicClient } from 'wagmi';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL, GROUP_STATUS_LABEL } from '../lib/abi';
-import { getContractAddress, formatNative, arcTestnet } from '../lib/wagmi';
+import { formatNative } from '../lib/wagmi';
+import { useArcNetwork } from './useArcNetwork';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface EscrowRecord {
@@ -160,12 +161,12 @@ function mapPaymentLink(l: any): PaymentLinkRecord {
 
 export function useHistory() {
   const { address } = useAccount();
-  // Pinned to Arc Testnet explicitly — ArcPay's contract history/balance must
-  // always reflect Arc, never whatever chain the wallet happens to be
-  // connected to (e.g. mid-deposit on a Gateway source chain).
-  const chainId     = arcTestnet.id;
-  const client      = usePublicClient({ chainId: arcTestnet.id });
-  const { data: balanceData, refetch: refetchBalance } = useBalance({ address, chainId: arcTestnet.id });
+  // Follows the ACTIVE ArcPay network (Mainnet / Testnet) explicitly — history
+  // and balance must always reflect that network, never whatever chain the
+  // wallet happens to be on (e.g. mid-deposit on a Gateway source chain).
+  const { chainId, contractAddress } = useArcNetwork();
+  const client      = usePublicClient({ chainId });
+  const { data: balanceData, refetch: refetchBalance } = useBalance({ address, chainId });
 
   const [escrows,       setEscrows]       = useState<EscrowRecord[]>([]);
   const [tokenEscrows,  setTokenEscrows]  = useState<TokenEscrowRecord[]>([]);
@@ -175,9 +176,15 @@ export function useHistory() {
   const [balance,       setBalance]       = useState<string | null>(null);
   const [loading,       setLoading]       = useState(false);
 
+  // Tracks the current (network, account) so a slow response from a previous
+  // network can't land after a switch and overwrite the new network's data.
+  const scopeKey = `${chainId}:${address ?? ''}`;
+  const scopeRef = useRef(scopeKey);
+  useEffect(() => { scopeRef.current = scopeKey; }, [scopeKey]);
+
   const refresh = useCallback(async () => {
     if (!address || !client) return;
-    const contractAddress = getContractAddress(chainId);
+    const myScope = scopeKey;
     setLoading(true);
 
     // Each read is independent — the public Arc Testnet RPC can be flaky or
@@ -193,6 +200,9 @@ export function useHistory() {
       client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserBatches', args: [address] }),
       client.readContract({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'getUserPaymentLinks', args: [address] }),
     ]);
+
+    // Network or account changed while we were fetching — drop this stale result.
+    if (scopeRef.current !== myScope) return;
 
     if (bal.status === 'fulfilled' && bal.value.data) setBalance(String(bal.value.data.value));
     else if (bal.status === 'rejected') console.warn('Balance refresh failed:', bal.reason);
@@ -213,22 +223,25 @@ export function useHistory() {
     else console.warn('Payment link history refresh failed:', rawLinks.reason);
 
     setLoading(false);
-  }, [address, chainId, client, refetchBalance]);
+  }, [address, contractAddress, client, refetchBalance, scopeKey]);
 
   // ── Auto-refresh when chain or address changes ────────────────────────────
-  const prevAddrRef = useRef<string | undefined>(undefined);
+  const prevScopeRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    // Only clear stale data when the address actually changes (switching
-    // accounts) — not on every re-render/reconnect, so a transient RPC
-    // hiccup on refresh doesn't blank the UI before the retry lands.
-    if (prevAddrRef.current !== address) {
+    // Clear stale data when the account OR the network actually changes — a
+    // Testnet escrow list must never show up under Mainnet. Not cleared on
+    // every re-render/reconnect, so a transient RPC hiccup on refresh doesn't
+    // blank the UI before the retry lands.
+    const scope = `${chainId}:${address ?? ''}`;
+    if (prevScopeRef.current !== scope) {
       setEscrows([]);
       setTokenEscrows([]);
       setGroups([]);
       setBatches([]);
       setPaymentLinks([]);
       setBalance(null);
-      prevAddrRef.current = address;
+      setLoading(false);
+      prevScopeRef.current = scope;
     }
     if (address && client) refresh();
   // eslint-disable-next-line react-hooks/exhaustive-deps

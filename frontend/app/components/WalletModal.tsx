@@ -3,7 +3,8 @@
 import { useAccount, useDisconnect, useChainId, useSwitchChain } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { X, Wallet, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
-import { arcTestnet, shortAddress } from '../lib/wagmi';
+import { shortAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 
 interface WalletModalProps {
   onClose: () => void;
@@ -15,8 +16,9 @@ export default function WalletModal({ onClose }: WalletModalProps) {
   const { isConnected, address, connector: activeConnector } = useAccount();
   const chainId = useChainId();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
+  const { network } = useArcNetwork();
 
-  const isWrongNetwork = isConnected && chainId !== arcTestnet.id;
+  const isWrongNetwork = isConnected && chainId !== network.id;
 
   const handleConnect = () => {
     onClose();
@@ -63,11 +65,11 @@ export default function WalletModal({ onClose }: WalletModalProps) {
               <span style={{
                 fontSize: 11, fontWeight: 600,
                 padding: '3px 8px', borderRadius: 999,
-                background: 'rgba(45,212,191,0.12)',
-                color: 'var(--primary)',
-                border: '1px solid rgba(45,212,191,0.25)',
+                background: network.bg,
+                color: network.color,
+                border: `1px solid ${network.border}`,
               }}>
-                Arc Testnet
+                {network.name}
               </span>
             </div>
             <button onClick={onClose} style={{
@@ -93,10 +95,10 @@ export default function WalletModal({ onClose }: WalletModalProps) {
                 <AlertCircle size={16} color="var(--warning)" style={{ flexShrink: 0, marginTop: 1 }} />
                 <div style={{ flex: 1 }}>
                   <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--warning)', marginBottom: 8 }}>
-                    Wrong network — switch to Arc Testnet
+                    Wrong network — switch to {network.name}
                   </p>
                   <button
-                    onClick={() => switchChain({ chainId: arcTestnet.id })}
+                    onClick={() => switchChain({ chainId: network.id })}
                     disabled={isSwitching}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6,
@@ -106,7 +108,7 @@ export default function WalletModal({ onClose }: WalletModalProps) {
                     }}
                   >
                     {isSwitching && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
-                    Switch to Arc Testnet
+                    Switch to {network.name}
                   </button>
                 </div>
               </div>
@@ -152,7 +154,7 @@ export default function WalletModal({ onClose }: WalletModalProps) {
               /* Not connected */
               <div>
                 <p style={{ fontSize: 14, color: 'var(--foreground-muted)', marginBottom: 20, lineHeight: 1.65 }}>
-                  Connect your EVM wallet to use ArcPay on Arc Testnet. Supports MetaMask, Rainbow, Coinbase Wallet, WalletConnect, and more.
+                  Connect your EVM wallet to use ArcPay on {network.name}. Supports MetaMask, Rainbow, Coinbase Wallet, WalletConnect, and more.
                 </p>
                 <button
                   onClick={handleConnect}
@@ -167,8 +169,8 @@ export default function WalletModal({ onClose }: WalletModalProps) {
                   <Wallet size={17} /> Choose Wallet
                 </button>
                 <p style={{ fontSize: 12, color: 'var(--foreground-subtle)', textAlign: 'center' }}>
-                  New to Arc Testnet?{' '}
-                  <a href="https://testnet.arcscan.app" target="_blank" rel="noopener noreferrer"
+                  New to {network.name}?{' '}
+                  <a href={network.explorerUrl} target="_blank" rel="noopener noreferrer"
                     style={{ color: 'var(--primary)', textDecoration: 'none' }}>
                     View explorer ↗
                   </a>

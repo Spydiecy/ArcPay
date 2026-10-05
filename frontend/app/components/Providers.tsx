@@ -4,7 +4,9 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, useTheme } from 'next-themes';
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit';
-import { wagmiConfig, arcTestnet } from '../lib/wagmi';
+import { wagmiConfig } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
+import NetworkSync from './NetworkSync';
 import '@rainbow-me/rainbowkit/styles.css';
 import { useEffect, useState } from 'react';
 
@@ -33,6 +35,7 @@ const rkLight = lightTheme({
 // Defers RainbowKit theme until after hydration so server/client CSS match.
 function RainbowKitWrapper({ children }: { children: React.ReactNode }) {
   const { resolvedTheme } = useTheme();
+  const { chainId: activeChainId } = useArcNetwork();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
@@ -44,12 +47,13 @@ function RainbowKitWrapper({ children }: { children: React.ReactNode }) {
   return (
     <RainbowKitProvider
       theme={theme}
-      initialChain={arcTestnet.id}
+      initialChain={activeChainId}
       appInfo={{
         appName: 'ArcPay',
         learnMoreUrl: 'https://github.com/Spydiecy/ArcPay',
       }}
     >
+      <NetworkSync />
       {children}
     </RainbowKitProvider>
   );

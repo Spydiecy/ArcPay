@@ -1,41 +1,19 @@
 import { createMistral } from '@ai-sdk/mistral';
 import { streamText, tool } from 'ai';
 import { z } from 'zod';
-import { createPublicClient, http, formatEther } from 'viem';
+import { createPublicClient, formatEther, isAddress } from 'viem';
 import { GATEWAY_API_BASE, GATEWAY_SOURCE_CHAINS, GATEWAY_WARN_THRESHOLD_USDC } from '../../lib/gateway';
+import { arcTransport, resolveArcNetwork, type ArcNetwork } from '../../lib/networks';
 
 const NATIVE_SYMBOL = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
-// ── Chain definitions ─────────────────────────────────────────────────────────
-// Arc Testnet only for now — kept as a lookup map (rather than a single
-// constant) so more networks (e.g. Arc Mainnet) can be added later without
-// reworking the chain-switching logic below.
-const arcTestnet = {
-  id: 5042002,
-  name: 'Arc Testnet',
-  nativeCurrency: { name: 'USDC', symbol: 'USDC', decimals: 18 },
-  rpcUrls: { default: { http: ['https://rpc.testnet.arc.network'] } },
-} as const;
-
-// ── Contract addresses per chain ──────────────────────────────────────────────
-const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
-  5042002: (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET || '0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6') as `0x${string}`,
-};
-
-// ── Explorer URLs per chain ───────────────────────────────────────────────────
-const EXPLORER_URLS: Record<number, string> = {
-  5042002: 'https://testnet.arcscan.app',
-};
-
-// ── Build a chain-specific public client ──────────────────────────────────────
-// Signature kept as (chainId) even though only Arc Testnet exists today, so
-// more networks can be added later without changing call sites.
-function getClient(_chainId: number) {
-  return createPublicClient({ chain: arcTestnet as never, transport: http('https://rpc.testnet.arc.network') });
-}
-
-function getNetworkName(_chainId: number) {
-  return 'Arc Testnet';
+// ── Network ───────────────────────────────────────────────────────────────────
+// Chain, RPC, contract address and explorer all come from the shared registry
+// (app/lib/networks.ts) — the same source the UI uses — so the agent can never
+// drift from what the user is actually looking at. Arc Mainnet and Arc Testnet
+// are both supported; the client tells us which one via `chainId`.
+function getClient(network: ArcNetwork) {
+  return createPublicClient({ chain: network.chain, transport: arcTransport(network) });
 }
 
 const ABI = [
@@ -56,12 +34,12 @@ const LINK_STATUS   = ['Active', 'Paid', 'Cancelled'];
 const mistral = createMistral({ apiKey: process.env.MISTRAL_API_KEY });
 
 // ── System prompt ─────────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `You are PayBot, the friendly AI assistant built into ArcPay — a trustless on-chain payment platform on Arc Testnet (EVM, Chain ID 5042002, native gas + settlement currency: ${NATIVE_SYMBOL}).
+const SYSTEM_PROMPT = `You are PayBot, the friendly AI assistant built into ArcPay — a trustless on-chain payment platform on Arc ({NETWORK_NAME}, EVM, Chain ID {CHAIN_ID}, native gas + settlement currency: ${NATIVE_SYMBOL}).
 
 ## Personality
 You ONLY discuss ArcPay and crypto payments. You are NOT a general-purpose AI.
 When asked about anything unrelated (weather, sports, news, recipes, general coding, etc.) give a short, warm, witty redirect back to ArcPay. Examples:
-- Weather → "Not sure about the weather, but ${NATIVE_SYMBOL} transfers on Arc Testnet are flowing smoothly! Want to send some?"
+- Weather → "Not sure about the weather, but ${NATIVE_SYMBOL} transfers on Arc are flowing smoothly! Want to send some?"
 - Sports → "I'm more of a payments guy! How about sending a batch payment to your team after the game?"
 - Crypto prices → "I don't track prices, but I can check your ${NATIVE_SYMBOL} balance on-chain — want me to?"
 Never flatly refuse. Always steer back to ArcPay.
@@ -157,28 +135,56 @@ The tool produces a clickable button in the chat UI. The user clicks it and thei
 - For quoted strings, just write: "your text" with regular quotes — NEVER wrap in asterisks
 - NEVER use single asterisk italic — always use **double asterisks** for emphasis
 
+## Network rules — the user is currently on {NETWORK_NAME}
+{NETWORK_RULES}
+
 Connected wallet: {WALLET_PLACEHOLDER}
 Active network: {NETWORK_PLACEHOLDER}`;
 
+function networkRules(network: ArcNetwork): string {
+  if (network.isTestnet) {
+    return [
+      '- Arc Testnet uses test USDC with no real value. It is safe to experiment.',
+      '- **Fund from Any Chain** (Circle Gateway) is available on this network.',
+    ].join('\n');
+  }
+  return [
+    '- Arc Mainnet moves REAL USDC and every transaction is irreversible.',
+    '- Whenever you build an action that sends or locks funds, state the exact amount and recipient in one short line so the user can double-check before confirming in their wallet.',
+    '- **Fund from Any Chain** (Circle Gateway) is NOT available on Mainnet — it is testnet-only right now. If asked about it, say so plainly and tell the user they can switch to Arc Testnet with the network switcher in the sidebar. Do NOT call getGatewayBalance on Mainnet.',
+    '- Everything else (protected transfers, group splits, batch payments, payment links, usernames) works the same as on testnet.',
+  ].join('\n');
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 export async function POST(req: Request) {
-  const { messages, walletAddress, chainId } = await req.json();
+  const body = await req.json();
+  const { messages, chainId } = body;
 
-  // Resolve chain-specific values — default to Arc Testnet if not provided
-  const activeChainId = typeof chainId === 'number' ? chainId : 5042002;
-  const CONTRACT_ADDRESS = CONTRACT_ADDRESSES[activeChainId] ?? CONTRACT_ADDRESSES[5042002];
-  const EXPLORER = EXPLORER_URLS[activeChainId] ?? EXPLORER_URLS[5042002];
-  const networkName = getNetworkName(activeChainId);
-  const publicClient = getClient(activeChainId);
+  // walletAddress is interpolated into the system prompt below, so only accept
+  // a well-formed address — never free text from the request body.
+  const walletAddress: string | null =
+    typeof body.walletAddress === 'string' && isAddress(body.walletAddress, { strict: false })
+      ? body.walletAddress
+      : null;
+
+  // Resolve the active Arc network (Mainnet / Testnet) from the client's chain
+  // id. Anything that isn't an Arc chain falls back to the default network.
+  const network = resolveArcNetwork(typeof chainId === 'number' ? chainId : undefined);
+  const CONTRACT_ADDRESS = network.contractAddress;
+  const publicClient = getClient(network);
 
   const system = SYSTEM_PROMPT
+    .replaceAll('{NETWORK_NAME}', network.name)
+    .replace('{CHAIN_ID}', String(network.id))
+    .replace('{NETWORK_RULES}', networkRules(network))
     .replace('{WALLET_PLACEHOLDER}',
       walletAddress ?? 'No wallet connected — ask the user to connect their wallet before fetching their history.')
     .replace('{NETWORK_PLACEHOLDER}',
-      `${networkName} (Chain ID: ${activeChainId}, Contract: \`${CONTRACT_ADDRESS}\`, Explorer: ${EXPLORER})`);
+      `${network.name} (Chain ID: ${network.id}, Contract: \`${CONTRACT_ADDRESS}\`, Explorer: ${network.explorerUrl})`);
 
   const result = await streamText({
-    model: mistral('mistral-large-latest'),
+    model: mistral('ministral-8b-latest'),
     system,
     messages,
     maxSteps: 5,
@@ -433,6 +439,10 @@ export async function POST(req: Request) {
         description: "Check a wallet's unified Circle Gateway USDC balance across all supported source chains (Ethereum Sepolia, Avalanche Fuji, OP Sepolia, Arbitrum Sepolia, Base Sepolia, Polygon Amoy), plus any deposits still waiting on source-chain finality. Read-only — does not trigger any transaction. Use this whenever the user asks about their Gateway/cross-chain balance or whether a deposit has landed.",
         parameters: z.object({ address: z.string().optional().describe('Wallet address to check — omit to use the currently connected wallet') }),
         execute: async ({ address }) => {
+          // Circle Gateway is wired to testnet only — never query it from Mainnet.
+          if (!network.gatewaySupported) {
+            return { error: 'Fund from Any Chain (Circle Gateway) is testnet-only right now. Tell the user to switch to Arc Testnet using the network switcher in the sidebar to use it.' };
+          }
           const target = address || walletAddress;
           if (!target) return { error: 'No wallet address available — ask the user to connect their wallet first.' };
           try {

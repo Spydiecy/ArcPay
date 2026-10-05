@@ -1,6 +1,6 @@
 /**
  * USDC token icon + badge — used anywhere we want to show the user
- * they're paying/receiving in USDC (Arc Testnet's native gas + settlement currency).
+ * they're paying/receiving in USDC (Arc's native gas + settlement currency).
  */
 
 export function UsdcIcon({ size = 16 }: { size?: number }) {

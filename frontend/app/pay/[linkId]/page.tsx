@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { parseEther, formatEther, createPublicClient, http } from 'viem';
+import { parseEther, formatEther, createPublicClient } from 'viem';
 import { useParams } from 'next/navigation';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
 import { PROTECTED_PAY_ABI } from '../../lib/abi';
-import { shortAddress, arcTestnet, CONTRACT_ADDRESSES, EXPLORER_URLS } from '../../lib/wagmi';
-import { useContractAddress } from '../../hooks/useContract';
+import { shortAddress } from '../../lib/wagmi';
+import { ARC_NETWORKS, ARC_NETWORK_LIST, arcTransport, isArcNetworkKey, type ArcNetwork, type ArcNetworkKey } from '../../lib/networks';
 import Toast, { ToastType } from '../../components/Toast';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { generateInvoicePDF } from '../../lib/invoice';
@@ -15,11 +15,12 @@ import { CheckCircle2, Ban, ArrowRight, ExternalLink, Shield, Copy, Check, Downl
 
 const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 
-// ── Dedicated read-only client — completely independent of wallet state ────────
-const testnetClient = createPublicClient({
-  chain: arcTestnet,
-  transport: http('https://rpc.testnet.arc.network'),
-});
+// ── Dedicated read-only clients — completely independent of wallet state ──────
+// One per Arc network, so a payment link can be looked up (and shown) without a
+// wallet connected and regardless of which environment the visitor last used.
+const readClients = Object.fromEntries(
+  ARC_NETWORK_LIST.map((n) => [n.key, createPublicClient({ chain: n.chain, transport: arcTransport(n) })]),
+) as Record<ArcNetworkKey, ReturnType<typeof createPublicClient>>;
 
 interface LinkData {
   linkId: string;
@@ -85,9 +86,9 @@ export default function PayPage() {
   const params = useParams();
   const linkId = params?.linkId as string;
 
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId: walletChainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  const contractAddress = useContractAddress();
+  const { switchChainAsync } = useSwitchChain();
 
   const [link,        setLink]        = useState<LinkData | null>(null);
   const [notFound,    setNotFound]    = useState(false);
@@ -102,23 +103,29 @@ export default function PayPage() {
   const [addrCopied,  setAddrCopied]  = useState(false);
   const [justPaid,    setJustPaid]    = useState(false); // true if this browser session did the payment
 
-  const [detectedChainId, setDetectedChainId] = useState<number | null>(null);
+  // Which Arc network this link lives on (from ?network=, or found by scanning).
+  const [detectedNetwork, setDetectedNetwork] = useState<ArcNetwork | null>(null);
 
   const t = (msg: string, type: ToastType) => setToast({ msg, type });
-  const { isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isSuccess, data: receipt } = useWaitForTransactionReceipt({ hash: txHash, chainId: detectedNetwork?.id });
 
   const loadLink = useCallback(async () => {
     if (!linkId) return;
     setFetching(true);
     setNotFound(false);
 
-    // Read-only lookup using a dedicated client — works even with no wallet
-    // connected. Kept as a list so more networks can be added later.
-    const candidates = [
-      { chainId: arcTestnet.id, readClient: testnetClient, addr: CONTRACT_ADDRESSES[arcTestnet.id] },
-    ];
+    // Read-only lookup using dedicated clients — works even with no wallet
+    // connected. New links carry ?network=mainnet|testnet (the same contract
+    // address exists on both, so a bare ID is ambiguous). Older links have no
+    // param: those were all created on testnet, so scan testnet first.
+    const requested = new URLSearchParams(window.location.search).get('network');
+    const candidates: ArcNetwork[] = isArcNetworkKey(requested)
+      ? [ARC_NETWORKS[requested]]
+      : [ARC_NETWORKS.testnet, ARC_NETWORKS.mainnet];
 
-    for (const { chainId, readClient, addr } of candidates) {
+    for (const net of candidates) {
+      const readClient = readClients[net.key];
+      const addr = net.contractAddress;
       try {
         const data = await readClient.readContract({
           address: addr, abi: PROTECTED_PAY_ABI,
@@ -126,7 +133,7 @@ export default function PayPage() {
         }) as LinkData;
         if (data && data.creator !== '0x0000000000000000000000000000000000000000') {
           setLink(data);
-          setDetectedChainId(chainId);
+          setDetectedNetwork(net);
           try {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const user = await readClient.readContract({ address: addr, abi: PROTECTED_PAY_ABI, functionName: 'getUser', args: [data.creator as `0x${string}`] }) as any;
@@ -158,23 +165,29 @@ export default function PayPage() {
     if (!link || !isConnected) return;
     const value = link.amount > 0n ? link.amount : parseEther(customAmt || '0');
     if (value === 0n) { t('Enter an amount', 'error'); return; }
-    // Use the contract address where the link was found
-    const payContractAddress = detectedChainId
-      ? CONTRACT_ADDRESSES[detectedChainId]
-      : contractAddress;
+    if (!detectedNetwork) return;
+    // Pay on the network (and contract) where the link was found.
     setLoading(true); t('Submitting…', 'loading');
     try {
+      // The payer's wallet may be on another chain entirely — move it first.
+      if (walletChainId !== detectedNetwork.id) {
+        t(`Switching wallet to ${detectedNetwork.name}…`, 'loading');
+        await switchChainAsync({ chainId: detectedNetwork.id });
+        t('Submitting…', 'loading');
+      }
       const hash = await writeContractAsync({
-        address: payContractAddress, abi: PROTECTED_PAY_ABI,
+        address: detectedNetwork.contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'payLink', args: [linkId as `0x${string}`, remarks], value,
+        chainId: detectedNetwork.id,
       });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [link, linkId, remarks, customAmt, writeContractAsync, isConnected, detectedChainId, contractAddress]);
+  }, [link, linkId, remarks, customAmt, writeContractAsync, switchChainAsync, isConnected, detectedNetwork, walletChainId]);
 
   const handleDownloadInvoice = useCallback((l: LinkData, txH?: string) => {
-    const explorer = detectedChainId ? EXPLORER_URLS[detectedChainId] : EXPLORER_URLS[arcTestnet.id];
+    const net = detectedNetwork ?? ARC_NETWORKS.testnet;
+    const explorer = net.explorerUrl;
     const amtDisplay = l.amount === 0n
       ? 'Custom'
       : `${parseFloat(formatEther(l.amount)).toFixed(4)} ${NATIVE}`;
@@ -189,11 +202,12 @@ export default function PayPage() {
       txHash:            txH,
       explorerUrl:       txH ? `${explorer}/tx/${txH}` : undefined,
       payerExplorerUrl:  `${explorer}/address/${l.paidBy}`,
+      networkName:       net.name,
     });
-  }, [creatorName, detectedChainId]);
+  }, [creatorName, detectedNetwork]);
 
   const handleShare = useCallback(async (l: LinkData) => {
-    const url = `${window.location.origin}/pay/${l.linkId}`;
+    const url = `${window.location.origin}/pay/${l.linkId}?network=${(detectedNetwork ?? ARC_NETWORKS.testnet).key}`;
     const amtText = l.amount === 0n ? '' : ` · ${parseFloat(formatEther(l.amount)).toFixed(4)} ${NATIVE}`;
     const shareData = {
       title: `Payment Receipt — ${l.description}`,
@@ -208,7 +222,7 @@ export default function PayPage() {
         t('Link copied to clipboard!', 'success');
       }
     } catch { /* user cancelled share */ }
-  }, []);
+  }, [detectedNetwork]);
 
   const creatorDisplay = creatorName ? `@${creatorName}` : shortAddress(link?.creator ?? '');
 
@@ -296,7 +310,7 @@ export default function PayPage() {
               {effectiveTxHash && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, marginTop: 4 }}>
                   <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Transaction</span>
-                  <a href={`${detectedChainId ? EXPLORER_URLS[detectedChainId] : EXPLORER_URLS[arcTestnet.id]}/tx/${effectiveTxHash}`} target="_blank" rel="noopener noreferrer"
+                  <a href={`${(detectedNetwork ?? ARC_NETWORKS.testnet).explorerUrl}/tx/${effectiveTxHash}`} target="_blank" rel="noopener noreferrer"
                     style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontFamily: 'monospace', color: 'var(--primary)', textDecoration: 'none' }}>
                     {shortAddress(effectiveTxHash)} <ExternalLink size={10} />
                   </a>
@@ -322,7 +336,7 @@ export default function PayPage() {
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <Shield size={11} color="var(--foreground-subtle)" />
-              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by ArcPay · Arc Testnet</span>
+              <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by ArcPay · {detectedNetwork?.name ?? 'Arc'}</span>
             </div>
           </div>
         </div>
@@ -423,6 +437,13 @@ export default function PayPage() {
               />
             </div>
 
+            {/* Mainnet links move real USDC */}
+            {detectedNetwork && !detectedNetwork.isTestnet && (
+              <p style={{ fontSize: 11.5, lineHeight: 1.5, textAlign: 'center', color: 'var(--foreground-muted)', marginBottom: 14, padding: '8px 12px', borderRadius: 10, background: detectedNetwork.bg, border: `1px solid ${detectedNetwork.border}` }}>
+                This payment is on <strong style={{ color: detectedNetwork.color }}>{detectedNetwork.name}</strong> — real USDC, not reversible.
+              </p>
+            )}
+
             {/* Action */}
             {isConnected ? (
               <button onClick={handlePay} disabled={loading}
@@ -443,7 +464,7 @@ export default function PayPage() {
           {/* Trust line */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
             <Shield size={11} color="var(--foreground-subtle)" />
-            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by ArcPay · Arc Testnet</span>
+            <span style={{ fontSize: 11, color: 'var(--foreground-subtle)' }}>Secured by ArcPay · {detectedNetwork?.name ?? 'Arc'}</span>
           </div>
         </div>
       </div>

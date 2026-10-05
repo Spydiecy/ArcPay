@@ -7,6 +7,7 @@ import ConnectScreen from './components/ConnectScreen';
 import HomePanel from './components/HomePanel';
 import dynamic from 'next/dynamic';
 import AgentChatWrapper from '../components/AgentChatWrapper';
+import NetworkGuard from '../components/NetworkGuard';
 
 const EscrowContent  = dynamic(() => import('../escrow/page').then(m => ({ default: m.default })),  { ssr: false });
 const GroupContent   = dynamic(() => import('../group/page').then(m => ({ default: m.default })),   { ssr: false });
@@ -35,15 +36,19 @@ export default function AppPage() {
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--background)' }}>
       <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-      <main style={{ flex: 1, overflow: 'auto', background: 'var(--background)' }}>
-        {activeTab === 'home'      && <HomePanel onTabChange={setActiveTab} />}
-        {activeTab === 'protected' && <EscrowContent />}
-        {activeTab === 'group'     && <GroupContent />}
-        {activeTab === 'batch'     && <BatchContent />}
-        {activeTab === 'links'     && <LinksContent />}
-        {activeTab === 'fund'      && <GatewayFundContent onTabChange={setActiveTab} />}
-        {activeTab === 'history'   && <ProfileContent />}
-      </main>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* The Fund tab deliberately moves the wallet to Gateway source chains mid-flow, so don't nag there. */}
+        <NetworkGuard hidden={activeTab === 'fund'} />
+        <main style={{ flex: 1, overflow: 'auto', background: 'var(--background)' }}>
+          {activeTab === 'home'      && <HomePanel onTabChange={setActiveTab} />}
+          {activeTab === 'protected' && <EscrowContent />}
+          {activeTab === 'group'     && <GroupContent />}
+          {activeTab === 'batch'     && <BatchContent />}
+          {activeTab === 'links'     && <LinksContent />}
+          {activeTab === 'fund'      && <GatewayFundContent onTabChange={setActiveTab} />}
+          {activeTab === 'history'   && <ProfileContent />}
+        </main>
+      </div>
       <AgentChatWrapper />
     </div>
   );

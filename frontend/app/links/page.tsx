@@ -5,7 +5,8 @@ import { parseEther, formatEther } from 'viem';
 import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT, PaymentLinkRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { shortAddress, arcTestnet } from '../lib/wagmi';
+import { shortAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -35,15 +36,18 @@ function fmtDate(ts: string) {
   return new Date(parseInt(ts) * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function payUrl(linkId: string): string {
+// The network is part of the URL: the same contract address exists on Arc Mainnet
+// and Arc Testnet, so a bare link ID would be ambiguous.
+function payUrl(linkId: string, networkKey: string): string {
   const base = typeof window !== 'undefined' ? window.location.origin : '';
-  return `${base}/pay/${linkId}`;
+  return `${base}/pay/${linkId}?network=${networkKey}`;
 }
 
 // ── QR modal ─────────────────────────────────────────────────────────────────
 function QRModal({ linkId, description, onClose }: { linkId: string; description: string; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const url = payUrl(linkId);
+  const { key: networkKey } = useArcNetwork();
+  const url = payUrl(linkId, networkKey);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -104,7 +108,8 @@ function LinkCard({ link, onCancel, onQR }: {
   onQR: (id: string, desc: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const url = payUrl(link.linkId);
+  const { key: networkKey, network, explorerUrl } = useArcNetwork();
+  const url = payUrl(link.linkId, networkKey);
   const isActive = link.status === 'Active';
   const isPaid   = link.status === 'Paid';
 
@@ -115,8 +120,8 @@ function LinkCard({ link, onCancel, onQR }: {
   };
 
   const handleDownload = () => {
-    const EXPLORER = 'https://testnet.arcscan.app';
     generateInvoicePDF({
+      networkName:      network.name,
       invoiceId:        link.linkId,
       description:      link.description,
       amount:           link.amount === '0' ? 'Custom' : `${parseFloat(formatEther(BigInt(link.amount))).toFixed(4)} ${NATIVE}`,
@@ -125,7 +130,7 @@ function LinkCard({ link, onCancel, onQR }: {
       paidAt:           fmtDate(link.paidAt),
       remarks:          link.remarks || undefined,
       payerExplorerUrl: link.paidBy && link.paidBy !== '0x0000000000000000000000000000000000000000'
-                          ? `${EXPLORER}/address/${link.paidBy}` : undefined,
+                          ? `${explorerUrl}/address/${link.paidBy}` : undefined,
     });
   };
 
@@ -241,8 +246,8 @@ function LinkCard({ link, onCancel, onQR }: {
 // ── Main content ──────────────────────────────────────────────────────────────
 function LinksContent() {
   const contractAddress = useContractAddress();
-  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
-  const chainId = arcTestnet.id;
+  // Follows the ACTIVE ArcPay network (Mainnet / Testnet) — see useArcNetwork.
+  const { chainId } = useArcNetwork();
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const { paymentLinks, loading: histLoading, refresh } = useHistory();
@@ -272,13 +277,13 @@ function LinksContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'createPaymentLink',
         args: [weiAmount, description.trim()],
-        chainId: arcTestnet.id,
+        chainId,
       });
       setTxHash(hash);
       setDescription(''); setAmount(''); setAnyAmount(false);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [description, amount, anyAmount, writeContractAsync]);
+  }, [description, amount, anyAmount, writeContractAsync, contractAddress, chainId]);
 
   const handleCancel = useCallback(async (linkId: string) => {
     setLoading(true); t('Cancelling…', 'loading');
@@ -287,12 +292,12 @@ function LinksContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'cancelPaymentLink',
         args: [linkId as `0x${string}`],
-        chainId: arcTestnet.id,
+        chainId,
       });
       setTxHash(hash);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const filtered = filter === 'all' ? paymentLinks : paymentLinks.filter(l => l.status === filter);
 

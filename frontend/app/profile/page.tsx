@@ -5,7 +5,8 @@ import { formatEther } from 'viem';
 import { useAccount, usePublicClient } from 'wagmi';
 import { useHistory, formatPOT, EscrowRecord, GroupRecord, BatchRecord, TokenEscrowRecord, PaymentLinkRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL, GROUP_STATUS_LABEL } from '../lib/abi';
-import { shortAddress, arcTestnet } from '../lib/wagmi';
+import { shortAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import {
@@ -15,7 +16,6 @@ import {
 
 type HistoryTab = 'all' | 'protected' | 'group' | 'batch' | 'links';
 const NATIVE   = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
-const EXPLORER = 'https://testnet.arcscan.app';
 
 function fmtDate(ts: string | undefined) {
   if (!ts || ts === '0') return null;
@@ -46,7 +46,7 @@ function AddrChip({ address, username, client, contractAddress }: {
     }).then((u: any) => {
       if (u?.username) setUname(u.username);
     }).catch(() => {});
-  }, [address, client, resolved]);
+  }, [address, client, resolved, contractAddress]);
 
   const copy = () => {
     navigator.clipboard.writeText(address);
@@ -103,7 +103,7 @@ function BatchDetail({ b, client, contractAddress }: {
       setRecipients(items.map(r => ({ account: r.account, amount: r.amount })));
     } catch { setRecipients([]); }
     finally { setFetching(false); }
-  }, [b.id, b.recipientCount, client, recipients]);
+  }, [b.id, b.recipientCount, client, recipients, contractAddress]);
 
   const toggle = () => { if (!open) load(); setOpen(o => !o); };
 
@@ -205,7 +205,7 @@ function GroupDetail({ g, myAddr, client, contractAddress }: {
     } finally {
       setFetching(false);
     }
-  }, [g.id, client, contributors]);
+  }, [g.id, client, contributors, contractAddress]);
 
   const toggle = () => {
     if (!open) loadContributors();
@@ -330,10 +330,10 @@ function GroupDetail({ g, myAddr, client, contractAddress }: {
 // ── Main history page ────────────────────────────────────────────────────────
 function HistoryContent() {
   const contractAddress = useContractAddress();
-  // Pinned to Arc Testnet — see escrow/page.tsx for rationale.
-  const chainId = arcTestnet.id;
+  // Follows the ACTIVE ArcPay network (Mainnet / Testnet) — see useArcNetwork.
+  const { chainId } = useArcNetwork();
   const { address } = useAccount();
-  const client = usePublicClient({ chainId: arcTestnet.id });
+  const client = usePublicClient({ chainId });
   const { escrows, tokenEscrows, groups, batches, paymentLinks, loading, refresh } = useHistory();
   const [tab, setTab] = useState<HistoryTab>('all');
 

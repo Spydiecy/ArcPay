@@ -4,23 +4,23 @@ import { useCallback } from 'react';
 import { useWriteContract, useReadContract, usePublicClient, useAccount } from 'wagmi';
 import { parseEther } from 'viem';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { getContractAddress, arcTestnet } from '../lib/wagmi';
+import { useArcNetwork } from './useArcNetwork';
 
 export type { PROTECTED_PAY_ABI };
 
-// ── Chain-aware contract address hook ─────────────────────────────────────────
-// ProtectedPay only exists on Arc Testnet, so this is pinned to Arc's chain id
-// explicitly rather than following the wallet's ambient connected chain
-// (which can be a Gateway source chain mid-deposit — see GatewayFundPanel).
+// ── Network-aware contract address hook ───────────────────────────────────────
+// Follows the ACTIVE ArcPay environment (Arc Mainnet / Arc Testnet) rather than
+// the wallet's ambient connected chain (which can be a Gateway source chain
+// mid-deposit — see GatewayFundPanel).
 export function useContractAddress(): `0x${string}` {
-  return getContractAddress(arcTestnet.id);
+  return useArcNetwork().contractAddress;
 }
 
 // ── Write hook — submit a tx and wait for inclusion ───────────────────────────
 export function useTx() {
   const { writeContractAsync } = useWriteContract();
-  const client = usePublicClient({ chainId: arcTestnet.id });
-  const contractAddress = useContractAddress();
+  const { chainId, contractAddress } = useArcNetwork();
+  const client = usePublicClient({ chainId });
 
   return useCallback(async (
     functionName: string,
@@ -36,7 +36,7 @@ export function useTx() {
         functionName: functionName as never,
         args: args as never,
         value,
-        chainId: arcTestnet.id,
+        chainId,
       });
       if (client) await client.waitForTransactionReceipt({ hash });
       onSuccess?.();
@@ -47,14 +47,14 @@ export function useTx() {
       onError?.(msg);
       throw e;
     }
-  }, [writeContractAsync, client, contractAddress]);
+  }, [writeContractAsync, client, contractAddress, chainId]);
 }
 
 // ── Read hook — call a view function ─────────────────────────────────────────
 export function useQuery() {
-  const client = usePublicClient({ chainId: arcTestnet.id });
+  const { chainId, contractAddress } = useArcNetwork();
+  const client = usePublicClient({ chainId });
   const { address } = useAccount();
-  const contractAddress = useContractAddress();
 
   return useCallback(async (functionName: string, args: unknown[] = []) => {
     if (!client) throw new Error('No public client');
@@ -71,13 +71,13 @@ export function useQuery() {
 
 // ── Convenience hook for a single read contract value ─────────────────────────
 export function useContractRead(functionName: string, args: unknown[] = []) {
-  const contractAddress = useContractAddress();
+  const { chainId, contractAddress } = useArcNetwork();
   return useReadContract({
     address: contractAddress,
     abi: PROTECTED_PAY_ABI,
     functionName: functionName as never,
     args: args as never,
-    chainId: arcTestnet.id,
+    chainId,
   });
 }
 

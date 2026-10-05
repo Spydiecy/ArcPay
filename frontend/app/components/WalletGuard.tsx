@@ -3,10 +3,12 @@
 import { useAccount } from 'wagmi';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { Wallet, Loader2 } from 'lucide-react';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 
 export default function WalletGuard({ children }: { children: React.ReactNode }) {
   const { isConnected, isConnecting } = useAccount();
   const { openConnectModal } = useConnectModal();
+  const { network } = useArcNetwork();
 
   if (isConnecting) {
     return (
@@ -26,7 +28,7 @@ export default function WalletGuard({ children }: { children: React.ReactNode })
           <Wallet size={32} color="var(--primary)" style={{ margin: '0 auto 20px' }} />
           <h2 style={{ fontSize: 22, fontWeight: 800, color: 'var(--foreground)', marginBottom: 10, letterSpacing: '-0.5px' }}>Connect Wallet</h2>
           <p style={{ fontSize: 14, color: 'var(--foreground-muted)', lineHeight: 1.6, marginBottom: 28 }}>
-            Connect your EVM wallet to use ArcPay on Arc Testnet.
+            Connect your EVM wallet to use ArcPay on {network.name}.
           </p>
           <button
             onClick={() => openConnectModal?.()}

@@ -2,11 +2,12 @@
 
 import { useChat } from '@ai-sdk/react';
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
 import { usePathname } from 'next/navigation';
 import { parseEther } from 'viem';
 import { PROTECTED_PAY_ABI } from '../lib/abi';
-import { getContractAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
+import type { ArcNetwork } from '../lib/networks';
 import { MessageCircle, X, Send, Bot, User, Loader2, Sparkles, ChevronDown, Zap, CheckCircle2 } from 'lucide-react';
 
 interface PendingAction {
@@ -129,12 +130,14 @@ function extractAction(invocations: any[]): PendingAction | null {
 // ── Transaction button ────────────────────────────────────────────────────────
 function TxButton({ action, onDone }: { action: PendingAction; onDone: (msg: string) => void }) {
   const { writeContractAsync } = useWriteContract();
-  const chainId = useChainId();
+  const { chainId, contractAddress } = useArcNetwork();
+  const { chainId: walletChainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const [txHash,  setTxHash]   = useState<`0x${string}` | undefined>();
   const [phase,   setPhase]    = useState<'idle' | 'wallet' | 'mining' | 'done' | 'error'>('idle');
   const [errMsg,  setErrMsg]   = useState('');
 
-  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
+  const { isSuccess } = useWaitForTransactionReceipt({ hash: txHash, chainId });
 
   useEffect(() => {
     if (isSuccess && phase === 'mining') {
@@ -144,23 +147,24 @@ function TxButton({ action, onDone }: { action: PendingAction; onDone: (msg: str
   }, [isSuccess, phase, action.label, onDone]);
 
   const execute = useCallback(async () => {
-    const contractAddress = getContractAddress(chainId);
     setPhase('wallet');
     try {
+      // The wallet must be on the network this action was built for.
+      if (walletChainId !== chainId) await switchChainAsync({ chainId });
       let hash: `0x${string}`;
-      if      (action.type === 'createEscrow')      hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'createEscrow',      args: [action.params.recipient, action.params.remarks],                                                          value: action.value });
-      else if (action.type === 'createGroupPayment') hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'createGroupPayment', args: [action.params.recipient, action.params.totalAmount, action.params.participants, action.params.remarks], value: action.value });
-      else if (action.type === 'createPaymentLink')  hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'createPaymentLink',  args: [action.params.amount, action.params.description] });
-      else if (action.type === 'batchTransfer')      hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'batchTransfer',      args: [action.params.recipients, action.params.amounts, action.params.remarks],                              value: action.value });
-      else if (action.type === 'claimEscrow')        hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimEscrow',        args: [BigInt(action.params.id)] });
-      else if (action.type === 'refundEscrow')       hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundEscrow',       args: [BigInt(action.params.id)] });
-      else if (action.type === 'contributeToGroup')  hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'contributeToGroup',  args: [BigInt(action.params.groupId)],                                                                        value: action.value ?? 0n });
-      else if (action.type === 'registerUsername')   hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'registerUsername',   args: [action.params.username] });
-      else if (action.type === 'claimTokenEscrow')    hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimTokenEscrow',    args: [BigInt(action.params.id)] });
-      else if (action.type === 'refundTokenEscrow')   hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundTokenEscrow',   args: [BigInt(action.params.id)] });
-      else if (action.type === 'cancelGroupPayment')  hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelGroupPayment',  args: [BigInt(action.params.id)] });
-      else if (action.type === 'withdrawContribution') hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'withdrawContribution', args: [BigInt(action.params.id)] });
-      else if (action.type === 'cancelPaymentLink')   hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelPaymentLink',   args: [action.params.linkId as `0x${string}`] });
+      if      (action.type === 'createEscrow')      hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'createEscrow',      args: [action.params.recipient, action.params.remarks],                                                          value: action.value });
+      else if (action.type === 'createGroupPayment') hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'createGroupPayment', args: [action.params.recipient, action.params.totalAmount, action.params.participants, action.params.remarks], value: action.value });
+      else if (action.type === 'createPaymentLink')  hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'createPaymentLink',  args: [action.params.amount, action.params.description] });
+      else if (action.type === 'batchTransfer')      hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'batchTransfer',      args: [action.params.recipients, action.params.amounts, action.params.remarks],                              value: action.value });
+      else if (action.type === 'claimEscrow')        hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimEscrow',        args: [BigInt(action.params.id)] });
+      else if (action.type === 'refundEscrow')       hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundEscrow',       args: [BigInt(action.params.id)] });
+      else if (action.type === 'contributeToGroup')  hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'contributeToGroup',  args: [BigInt(action.params.groupId)],                                                                        value: action.value ?? 0n });
+      else if (action.type === 'registerUsername')   hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'registerUsername',   args: [action.params.username] });
+      else if (action.type === 'claimTokenEscrow')    hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimTokenEscrow',    args: [BigInt(action.params.id)] });
+      else if (action.type === 'refundTokenEscrow')   hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundTokenEscrow',   args: [BigInt(action.params.id)] });
+      else if (action.type === 'cancelGroupPayment')  hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelGroupPayment',  args: [BigInt(action.params.id)] });
+      else if (action.type === 'withdrawContribution') hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'withdrawContribution', args: [BigInt(action.params.id)] });
+      else if (action.type === 'cancelPaymentLink')   hash = await writeContractAsync({ chainId, address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'cancelPaymentLink',   args: [action.params.linkId as `0x${string}`] });
       else { setPhase('idle'); return; }
       setTxHash(hash);
       setPhase('mining');
@@ -168,7 +172,7 @@ function TxButton({ action, onDone }: { action: PendingAction; onDone: (msg: str
       setErrMsg(e instanceof Error ? e.message.slice(0, 80) : 'Transaction rejected');
       setPhase('error');
     }
-  }, [action, chainId, writeContractAsync]);
+  }, [action, chainId, contractAddress, walletChainId, switchChainAsync, writeContractAsync]);
 
   if (phase === 'done') {
     return (
@@ -199,9 +203,19 @@ function TxButton({ action, onDone }: { action: PendingAction; onDone: (msg: str
 }
 
 // ── Main AgentChat ────────────────────────────────────────────────────────────
+function welcomeMessage(network: ArcNetwork) {
+  const gateway = network.gatewaySupported ? '\n- Funding from any chain via Circle Gateway' : '';
+  const live = network.isTestnet ? '' : '\n\n⚠️ You\'re on **Arc Mainnet** — transactions use **real USDC** and can\'t be undone.';
+  return {
+    id: 'welcome',
+    role: 'assistant' as const,
+    content: `Hey! I'm **PayBot** 👋 — your ArcPay assistant on **${network.name}**.\n\nI can help you with:\n- Protected transfers (native USDC & ERC-20 tokens)\n- Group split payments\n- Batch payments\n- Payment links & QR codes${gateway}\n- Checking your transaction history${live}\n\nJust ask in plain English — and I can trigger the wallet popup right here!`,
+  };
+}
+
 export default function AgentChat() {
   const { address } = useAccount();
-  const chainId = useChainId();
+  const { network, chainId } = useArcNetwork();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [hasNew, setHasNew] = useState(false);
@@ -209,12 +223,8 @@ export default function AgentChat() {
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, error, append } = useChat({
     api: '/api/agent',
-    body: { walletAddress: address ?? null, chainId: chainId ?? 5042002 },
-    initialMessages: [{
-      id: 'welcome',
-      role: 'assistant',
-      content: `Hey! I'm **PayBot** 👋 — your ArcPay assistant.\n\nI can help you with:\n- Protected transfers (native USDC & ERC-20 tokens)\n- Group split payments\n- Batch payments\n- Payment links & QR codes\n- Funding from any chain via Circle Gateway\n- Checking your transaction history\n\nJust ask in plain English — and I can trigger the wallet popup right here!`,
-    }],
+    body: { walletAddress: address ?? null, chainId },
+    initialMessages: [welcomeMessage(network)],
   });
 
   useEffect(() => {
@@ -236,7 +246,8 @@ export default function AgentChat() {
     'Check my history',
     'Send 0.5 USDC to @spy as escrow',
     'Create a payment link for 1 USDC',
-    'Check my Gateway balance',
+    // Circle Gateway is testnet-only, so don't suggest it on Mainnet.
+    ...(network.gatewaySupported ? ['Check my Gateway balance'] : []),
   ];
 
   return (

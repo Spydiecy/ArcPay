@@ -12,47 +12,31 @@ import {
   rainbowWallet,
   trustWallet,
 } from '@rainbow-me/rainbowkit/wallets';
-import type { Chain } from 'wagmi/chains';
+import {
+  arcMainnet,
+  arcTestnet,
+  arcTransport,
+  ARC_NETWORKS,
+  ARC_NETWORK_LIST,
+  DEFAULT_NETWORK,
+  resolveArcNetwork,
+} from './networks';
 
-// ── Arc Testnet ────────────────────────────────────────────────────────────────
-// Currently the only live network for ArcPay. The chain switcher UI is kept in
-// place (see Sidebar.tsx `NETWORKS`) so additional networks (e.g. Arc Mainnet)
-// can be dropped in later without reworking the UI.
-export const arcTestnet = {
-  id: 5042002,
-  name: 'Arc Testnet',
-  nativeCurrency: {
-    name: 'USDC',
-    symbol: 'USDC',
-    decimals: 18,
-  },
-  rpcUrls: {
-    default: { http: ['https://rpc.testnet.arc.network'] },
-    public:  { http: ['https://rpc.testnet.arc.network'] },
-  },
-  blockExplorers: {
-    default: {
-      name: 'Arcscan',
-      url: 'https://testnet.arcscan.app',
-    },
-  },
-  testnet: true,
-} as const satisfies Chain;
+// ── Arc networks ──────────────────────────────────────────────────────────────
+// Arc Mainnet + Arc Testnet are both defined once in ./networks (shared with the
+// PayBot API route). Re-exported here so existing imports keep working.
+export { arcMainnet, arcTestnet };
 
 // ── Contract addresses per network ───────────────────────────────────────────
-export const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = {
-  [arcTestnet.id]: (
-    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS_TESTNET || '0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6'
-  ) as `0x${string}`,
-};
+export const CONTRACT_ADDRESSES: Record<number, `0x${string}`> = Object.fromEntries(
+  ARC_NETWORK_LIST.map((n) => [n.id, n.contractAddress]),
+);
 
-// Default contract address (falls back to Arc Testnet)
-export const CONTRACT_ADDRESS = (
-  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || CONTRACT_ADDRESSES[arcTestnet.id]
-) as `0x${string}`;
+// Contract address of the default network (legacy export)
+export const CONTRACT_ADDRESS: `0x${string}` = DEFAULT_NETWORK.contractAddress;
 
 export function getContractAddress(chainId: number): `0x${string}` {
-  return CONTRACT_ADDRESSES[chainId] ?? CONTRACT_ADDRESSES[arcTestnet.id];
+  return resolveArcNetwork(chainId).contractAddress;
 }
 
 // ── WalletConnect project ID ──────────────────────────────────────────────────
@@ -95,14 +79,17 @@ export const gatewaySourceWagmiChains = [
 ] as const;
 
 // ── Wagmi config ──────────────────────────────────────────────────────────────
-// `chains` is an array on purpose (not a single chain) so the network switcher
-// keeps working as-is once more networks are added here in the future.
+// Both Arc networks are registered so the sidebar switcher (and the wallet) can
+// move between them. Every read/write in the app passes an explicit chainId
+// from the active network (see useArcNetwork), so chain ORDER here only decides
+// the disconnected default and has no effect on which network a tx targets.
 export const wagmiConfig = createConfig({
-  chains: [arcTestnet, ...gatewaySourceWagmiChains],
+  chains: [arcTestnet, arcMainnet, ...gatewaySourceWagmiChains],
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connectors: connectors as any,
   transports: {
-    [arcTestnet.id]: http('https://rpc.testnet.arc.network'),
+    [arcTestnet.id]: arcTransport(ARC_NETWORKS.testnet),
+    [arcMainnet.id]: arcTransport(ARC_NETWORKS.mainnet),
     [sepolia.id]: http(),
     [avalancheFuji.id]: http(),
     [optimismSepolia.id]: http(),
@@ -114,14 +101,15 @@ export const wagmiConfig = createConfig({
 });
 
 // ── Explorer URLs per chain ───────────────────────────────────────────────────
-export const EXPLORER_URLS: Record<number, string> = {
-  [arcTestnet.id]: 'https://testnet.arcscan.app',
-};
+export const EXPLORER_URLS: Record<number, string> = Object.fromEntries(
+  ARC_NETWORK_LIST.map((n) => [n.id, n.explorerUrl]),
+);
 
-export const EXPLORER_URL = EXPLORER_URLS[arcTestnet.id];
+// Explorer of the default network (legacy export)
+export const EXPLORER_URL = DEFAULT_NETWORK.explorerUrl;
 
 export function getExplorerUrl(chainId: number): string {
-  return EXPLORER_URLS[chainId] ?? EXPLORER_URLS[arcTestnet.id];
+  return resolveArcNetwork(chainId).explorerUrl;
 }
 
 export function explorerTx(hash: string, chainId?: number): string {

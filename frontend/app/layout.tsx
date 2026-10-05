@@ -5,8 +5,8 @@ import Navbar from './components/Navbar';
 import SmoothScroll from './components/SmoothScroll';
 
 export const metadata: Metadata = {
-  title: 'ArcPay — Trustless Payments on Arc Testnet',
-  description: 'Protected transfers, group splits, and batch payments secured by EVM smart contracts on Arc Testnet.',
+  title: 'ArcPay — Trustless Payments on Arc',
+  description: 'Protected transfers, group splits, and batch payments secured by EVM smart contracts on Arc Mainnet and Arc Testnet.',
   icons: {
     icon: '/logo.png',
     apple: '/logo.png',

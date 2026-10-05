@@ -80,7 +80,7 @@ const FEATURES = [
   {
     num: '09', tag: 'SECURITY', icon: ShieldCheck,
     title: 'Smart contracts, not promises.',
-    desc: 'No admin key, no upgrade mechanism, no pause function. Every payment is enforced by EVM code on Arc Testnet.',
+    desc: 'No admin key, no upgrade mechanism, no pause function. Every payment is enforced by EVM code on Arc.',
     stat: '0', statLabel: 'MIDDLEMEN',
     href: '/app',
   },
@@ -96,7 +96,7 @@ const FEATURES = [
 const FAQS = [
   {
     q: 'What is a protected transfer?',
-    a: 'A protected transfer locks your USDC in a smart contract on Arc Testnet. The recipient can claim at any time. If they don\'t, you refund yourself — no third party holds the funds, only the contract.',
+    a: 'A protected transfer locks your USDC in a smart contract on Arc. The recipient can claim at any time. If they don\'t, you refund yourself — no third party holds the funds, only the contract.',
   },
   {
     q: 'Can I escrow ERC-20 tokens too?',
@@ -116,7 +116,7 @@ const FAQS = [
   },
   {
     q: 'How does "Fund from Any Chain" work?',
-    a: 'ArcPay integrates Circle Gateway so you can use USDC you already hold on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Optimism Sepolia, Avalanche Fuji, or Polygon Amoy without bridging manually first. Deposit into Gateway from the source chain, then sign a transfer request — Circle relays an attestation and you mint the USDC directly into your Arc Testnet balance, ready to fund any ArcPay feature.',
+    a: 'ArcPay integrates Circle Gateway so you can use USDC you already hold on Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, Optimism Sepolia, Avalanche Fuji, or Polygon Amoy without bridging manually first. Deposit into Gateway from the source chain, then sign a transfer request — Circle relays an attestation and you mint the USDC directly into your Arc Testnet balance, ready to fund any ArcPay feature. (Testnet-only for now.)',
   },
   {
     q: 'What is PayBot?',
@@ -127,16 +127,20 @@ const FAQS = [
     a: 'You can register a unique on-chain username (3–30 characters). Others send to @yourname instead of your full address. It works across all ArcPay features and is fully on-chain — no off-chain indexer needed.',
   },
   {
+    q: 'Is ArcPay live on Arc Mainnet?',
+    a: 'Yes. Use the network switcher at the top of the app sidebar to move between Arc Mainnet (real USDC) and Arc Testnet (free test USDC). Mainnet transactions are real and irreversible, so try things on Testnet first. Cross-chain funding through Circle Gateway is Testnet-only for now.',
+  },
+  {
     q: 'What token is used for gas?',
-    a: 'All transactions use USDC — Arc Testnet uses USDC as its native gas and settlement currency. You need a small amount of USDC in your wallet to pay for gas.',
+    a: 'All transactions use USDC — Arc uses USDC as its native gas and settlement currency. You need a small amount of USDC in your wallet to pay for gas.',
   },
   {
     q: 'Is ArcPay non-custodial?',
-    a: 'Yes. ArcPay is a set of EVM smart contracts on Arc Testnet. No company or individual holds your funds. No admin key, no upgrade mechanism, no pause function. The contract code is open source and auditable by anyone.',
+    a: 'Yes. ArcPay is a set of EVM smart contracts on Arc Mainnet and Arc Testnet. No company or individual holds your funds. No admin key, no upgrade mechanism, no pause function. The contract code is open source and auditable by anyone.',
   },
   {
     q: 'Which wallets are supported?',
-    a: 'ArcPay works with any EVM-compatible wallet: MetaMask, Rainbow, Coinbase Wallet, Trust Wallet, and more. Switch to Arc Testnet and connect.',
+    a: 'ArcPay works with any EVM-compatible wallet: MetaMask, Rainbow, Coinbase Wallet, Trust Wallet, and more. ArcPay runs on Arc Mainnet and Arc Testnet — connect, then use the network switcher in the app sidebar.',
   },
 ];
 
@@ -200,14 +204,14 @@ export default function HomePage() {
                 background: 'var(--primary)',
                 display: 'inline-block',
               }} />
-              Arc Testnet · EVM Smart Contracts · USDC Gas
+              Arc Mainnet + Testnet · EVM Smart Contracts · USDC Gas
             </p>
             <h1 style={{ fontSize: 'clamp(44px, 7vw, 88px)', fontWeight: 800, lineHeight: 1.05, letterSpacing: '-3px', marginBottom: 28 }}>
               <span style={{ color: 'var(--foreground)', display: 'block' }}>Protected Payments</span>
               <span className="text-gradient" style={{ display: 'block' }}>Built on Arc</span>
             </h1>
             <p style={{ fontSize: 18, lineHeight: 1.7, color: 'var(--foreground-muted)', maxWidth: 520, margin: '0 auto 40px' }}>
-              Trustless escrow, group crowdfunding, batch transfers, and cross-chain funding via Circle Gateway — secured by EVM smart contracts on Arc Testnet. No intermediaries. No trust required.
+              Trustless escrow, group crowdfunding, batch transfers, and cross-chain funding via Circle Gateway — secured by EVM smart contracts on Arc. No intermediaries. No trust required.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
               <Link href="/app" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '14px 28px', borderRadius: 999, background: 'var(--primary)', color: 'var(--primary-fg)', fontSize: 15, fontWeight: 700, textDecoration: 'none' }}
@@ -272,13 +276,13 @@ export default function HomePage() {
       <section style={{ padding: '64px 0 72px', textAlign: 'center' }}>
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 16 }}>
           <span style={{ fontSize: 14, color: 'var(--foreground-subtle)', fontWeight: 400 }}>Powered by</span>
-          <img src="/chain/arc.png" alt="Arc Testnet"
+          <img src="/chain/arc.png" alt="Arc"
             style={{ height: 48, width: 'auto', objectFit: 'contain', display: 'block' }}
             onError={e => {
               const el = e.currentTarget as HTMLImageElement;
               el.style.display = 'none';
               const span = document.createElement('span');
-              span.textContent = 'Arc Testnet';
+              span.textContent = 'Arc';
               span.style.cssText = 'font-size:28px;font-weight:800;color:var(--foreground);letter-spacing:-1px';
               el.parentElement?.appendChild(span);
             }}
@@ -339,7 +343,7 @@ export default function HomePage() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)' }}>
             {[
-              { n: '01', title: 'Connect Wallet',    desc: 'Install MetaMask, Rainbow, or any EVM wallet. Connect to Arc Testnet in one click — the app will prompt you to add the chain.' },
+              { n: '01', title: 'Connect Wallet',    desc: 'Install MetaMask, Rainbow, or any EVM wallet. Pick Arc Mainnet or Arc Testnet in one click — the app will prompt you to add or switch the chain.' },
               { n: '02', title: 'Register Username', desc: 'Claim a unique on-chain name. Others can send to @you instead of a long address.' },
               { n: '03', title: 'Send or Receive',   desc: 'Create an escrow, start a group payment, or batch-send to multiple addresses.' },
               { n: '04', title: 'Claim Funds',       desc: 'Recipients claim directly from the contract. Fully trustless. No middleman.' },
@@ -371,7 +375,7 @@ export default function HomePage() {
             </div>
             <div>
               <p style={{ fontSize: 16, color: 'var(--foreground-muted)', lineHeight: 1.75, marginBottom: 32 }}>
-                On-chain transparency, post-transfer certainty. Every escrow, group payment, and batch transfer is recorded on Arc Testnet — visible to anyone, controlled by no one.
+                On-chain transparency, post-transfer certainty. Every escrow, group payment, and batch transfer is recorded on Arc — visible to anyone, controlled by no one.
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {[
@@ -416,7 +420,7 @@ export default function HomePage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <img src="/logo.png" alt="ArcPay" style={{ width: 28, height: 28, borderRadius: 8, objectFit: 'cover', display: 'block' }} />
               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--foreground)' }}>ArcPay</span>
-              <span style={{ fontSize: 13, color: 'var(--foreground-subtle)', marginLeft: 4 }}>· EVM · Arc Testnet</span>
+              <span style={{ fontSize: 13, color: 'var(--foreground-subtle)', marginLeft: 4 }}>· EVM · Arc Mainnet &amp; Testnet</span>
             </div>
 
             {/* Right — nav links + social icons */}

@@ -5,7 +5,8 @@ import { parseUnits, formatUnits, parseEther, formatEther } from 'viem';
 import { useAccount, usePublicClient, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { useHistory, formatPOT, EscrowRecord, TokenEscrowRecord } from '../hooks/useHistory';
 import { PROTECTED_PAY_ABI, ESCROW_STATUS_LABEL } from '../lib/abi';
-import { shortAddress, arcTestnet } from '../lib/wagmi';
+import { shortAddress } from '../lib/wagmi';
+import { useArcNetwork } from '../hooks/useArcNetwork';
 import { useContractAddress } from '../hooks/useContract';
 import WalletGuard from '../components/WalletGuard';
 import Toast, { ToastType } from '../components/Toast';
@@ -33,12 +34,10 @@ interface TokenInfo { name: string; symbol: string; decimals: number; }
 
 function EscrowContent() {
   const contractAddress = useContractAddress();
-  // Pinned to Arc Testnet — ProtectedPay only exists there, so reads/writes
-  // must never silently follow the wallet's ambient connected chain (which
-  // can be a Gateway source chain, see GatewayFundPanel's deposit flow).
-  const chainId = arcTestnet.id;
+  // Follows the ACTIVE ArcPay network (Mainnet / Testnet) — see useArcNetwork.
+  const { chainId } = useArcNetwork();
   const { address } = useAccount();
-  const client = usePublicClient({ chainId: arcTestnet.id });
+  const client = usePublicClient({ chainId });
   const { writeContractAsync } = useWriteContract();
   const { escrows, tokenEscrows, loading: histLoading, refresh } = useHistory();
 
@@ -90,7 +89,7 @@ function EscrowContent() {
       if (addr && addr !== '0x0000000000000000000000000000000000000000') { setResolvedRecipient(addr); t(`Resolved @${uname}`, 'success'); }
       else { setResolvedRecipient(''); t(`@${uname} not found`, 'error'); }
     } catch { setResolvedRecipient(''); }
-  }, [client]);
+  }, [client, contractAddress]);
 
   const effectiveRecipient = (resolvedRecipient || recipient) as `0x${string}`;
 
@@ -122,7 +121,7 @@ function EscrowContent() {
         abi: ERC20_ABI,
         functionName: 'approve',
         args: [contractAddress, amountWei],
-        chainId: arcTestnet.id,
+        chainId,
       });
       // Wait for the approval tx to be mined
       setTxHash(hash);
@@ -131,7 +130,7 @@ function EscrowContent() {
       t('Approved! Now create the transfer.', 'success');
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Approval failed', 'error'); }
     finally { setApproving(false); }
-  }, [tokenInfo, amount, tokenAddress, address, writeContractAsync]);
+  }, [tokenInfo, amount, tokenAddress, address, writeContractAsync, contractAddress, chainId]);
 
   // ── Create native escrow ───────────────────────────────────────────────────
   const handleCreate = useCallback(async () => {
@@ -143,13 +142,13 @@ function EscrowContent() {
         functionName: 'createEscrow',
         args: [effectiveRecipient, remarks],
         value: parseEther(amount),
-        chainId: arcTestnet.id,
+        chainId,
       });
       setTxHash(hash);
       setRecipient(''); setResolvedRecipient(''); setAmount(''); setRemarks('');
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [effectiveRecipient, amount, remarks, writeContractAsync]);
+  }, [effectiveRecipient, amount, remarks, writeContractAsync, contractAddress, chainId]);
 
   // ── Create token escrow ────────────────────────────────────────────────────
   const handleCreateToken = useCallback(async () => {
@@ -164,43 +163,43 @@ function EscrowContent() {
         address: contractAddress, abi: PROTECTED_PAY_ABI,
         functionName: 'createTokenEscrow',
         args: [tokenAddress as `0x${string}`, effectiveRecipient, amountWei, remarks],
-        chainId: arcTestnet.id,
+        chainId,
       });
       setTxHash(hash);
       setRecipient(''); setResolvedRecipient(''); setAmount(''); setRemarks('');
       setApproved(false);
     } catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [effectiveRecipient, amount, remarks, tokenInfo, tokenAddress, approved, writeContractAsync]);
+  }, [effectiveRecipient, amount, remarks, tokenInfo, tokenAddress, approved, writeContractAsync, contractAddress, chainId]);
 
   // ── Claim / Refund ────────────────────────────────────────────────────────
   const handleClaim = useCallback(async (id: string) => {
     setLoading(true); t('Claiming…', 'loading');
-    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimEscrow', args: [BigInt(id)], chainId: arcTestnet.id }); setTxHash(hash); }
+    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimEscrow', args: [BigInt(id)], chainId }); setTxHash(hash); }
     catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const handleRefund = useCallback(async (id: string) => {
     setLoading(true); t('Refunding…', 'loading');
-    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundEscrow', args: [BigInt(id)], chainId: arcTestnet.id }); setTxHash(hash); }
+    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundEscrow', args: [BigInt(id)], chainId }); setTxHash(hash); }
     catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const handleClaimToken = useCallback(async (id: string) => {
     setLoading(true); t('Claiming tokens…', 'loading');
-    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimTokenEscrow', args: [BigInt(id)], chainId: arcTestnet.id }); setTxHash(hash); }
+    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'claimTokenEscrow', args: [BigInt(id)], chainId }); setTxHash(hash); }
     catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const handleRefundToken = useCallback(async (id: string) => {
     setLoading(true); t('Refunding tokens…', 'loading');
-    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundTokenEscrow', args: [BigInt(id)], chainId: arcTestnet.id }); setTxHash(hash); }
+    try { const hash = await writeContractAsync({ address: contractAddress, abi: PROTECTED_PAY_ABI, functionName: 'refundTokenEscrow', args: [BigInt(id)], chainId }); setTxHash(hash); }
     catch (e: unknown) { t(e instanceof Error ? e.message.slice(0, 80) : 'Failed', 'error'); }
     finally { setLoading(false); }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, contractAddress, chainId]);
 
   const myAddr = (address ?? '').toLowerCase();
 
