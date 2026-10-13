@@ -25,7 +25,7 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
   // Follows the ACTIVE ArcPay network (Mainnet / Testnet) — see useArcNetwork.
   const { chainId } = useArcNetwork();
   const client      = usePublicClient({ chainId });
-  const { escrows, tokenEscrows, groups, batches, paymentLinks, formattedBalance, loading: histLoading, refresh } = useHistory();
+  const { escrows, tokenEscrows, groups, batches, paymentLinks, formattedBalance, balanceError, loading: histLoading, refresh } = useHistory();
   const { writeContractAsync } = useWriteContract();
 
   const [username, setUsername] = useState('');
@@ -51,11 +51,6 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
   const profile = (profileData && (profileData as UserProfile).username)
     ? (profileData as UserProfile)
     : null;
-
-  useEffect(() => {
-    if (address && client) refresh();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, chainId, client]);
 
   useEffect(() => {
     if (txSuccess) { t('Username registered!', 'success'); refresh(); refetchProfile(); setUsername(''); setTxHash(undefined); }
@@ -155,7 +150,14 @@ export default function HomePanel({ onTabChange }: { onTabChange: (tab: AppTab) 
             <p style={{ fontSize: 32, fontWeight: 800, color: 'var(--on-primary-container)', letterSpacing: '-1.5px', lineHeight: 1, marginTop: 12 }}>
               {formattedBalance ?? '—'}
             </p>
-            <p style={{ fontSize: 12, color: 'var(--on-primary-container)', opacity: 0.55, marginTop: 6 }}>Available</p>
+            {balanceError ? (
+              <p style={{ fontSize: 12, color: 'var(--on-primary-container)', marginTop: 6 }}>
+                Couldn&apos;t load your balance (the network is busy).{' '}
+                <button onClick={refresh} style={{ background: 'none', border: 'none', padding: 0, color: 'inherit', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 12 }}>Retry</button>
+              </p>
+            ) : (
+              <p style={{ fontSize: 12, color: 'var(--on-primary-container)', opacity: 0.55, marginTop: 6 }}>Available</p>
+            )}
           </div>
         </div>
       </div>

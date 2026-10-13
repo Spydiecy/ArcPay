@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
+import { createPublicClient } from 'viem';
 import {
+  RPC_BATCH_SIZE,
+  arcBrowserTransport,
+  chainRelayUrl,
   arcTransport,
   parseRpcUrls,
   ARC_NETWORKS,
@@ -119,6 +123,112 @@ describe('RPC configuration + failover', () => {
     expect(fresh.ARC_NETWORKS.mainnet.rpcUrl).toBe('https://my-own.example/key');
     vi.unstubAllEnvs();
   });
+});
+
+describe('RPC request batching (public RPCs rate-limit bursts)', () => {
+  // Fake JSON-RPC server: answers every call in a request (single or batch).
+  function mockRpc() {
+    const requests: unknown[] = [];
+    const spy = vi.spyOn(global, 'fetch').mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String((init as RequestInit).body));
+      requests.push(body);
+      const answer = (c: { id: number }) => ({ jsonrpc: '2.0', id: c.id, result: '0x1' });
+      return new Response(JSON.stringify(Array.isArray(body) ? body.map(answer) : answer(body)), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+    return { requests, spy };
+  }
+
+  it('folds a burst of concurrent reads into ONE http request', async () => {
+    const { requests, spy } = mockRpc();
+    const client = createPublicClient({ chain: arcMainnet, transport: arcTransport(ARC_NETWORKS.mainnet) });
+    const addr = '0x2ec8175015Bef5ad1C0BE1587C4A377bC083A2d8';
+
+    const results = await Promise.all(Array.from({ length: 10 }, () => client.getBalance({ address: addr })));
+
+    expect(results).toHaveLength(10);
+    expect(results.every((r) => r === 1n)).toBe(true);
+    expect(requests).toHaveLength(1);              // one HTTP request...
+    expect(Array.isArray(requests[0])).toBe(true); // ...carrying a JSON-RPC batch
+    expect((requests[0] as unknown[]).length).toBe(10);
+    spy.mockRestore();
+  });
+
+  it('never sends more than the endpoint allows per batch (it drops calls above 30)', async () => {
+    const { requests, spy } = mockRpc();
+    const client = createPublicClient({ chain: arcMainnet, transport: arcTransport(ARC_NETWORKS.mainnet) });
+    const addr = '0x2ec8175015Bef5ad1C0BE1587C4A377bC083A2d8';
+
+    const results = await Promise.all(Array.from({ length: 70 }, () => client.getBalance({ address: addr })));
+
+    expect(results).toHaveLength(70); // every single call still gets an answer
+    const sizes = requests.map((r) => (Array.isArray(r) ? r.length : 1));
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(RPC_BATCH_SIZE);
+    expect(RPC_BATCH_SIZE).toBeLessThanOrEqual(30);
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(70);
+    spy.mockRestore();
+  });
+});
+
+describe('browser transport: survives ad-blockers (ERR_BLOCKED_BY_CLIENT)', () => {
+  const ADDR = '0x2ec8175015Bef5ad1C0BE1587C4A377bC083A2d8';
+  const rpcAnswer = (body: { id: number }) => ({ jsonrpc: '2.0', id: body.id, result: '0x10' });
+
+  // A fake network: direct RPC hosts are "blocked" (fetch throws like the browser does),
+  // while same-origin requests to /api/chain/* work.
+  function blockDirectRpc() {
+    const seen: string[] = [];
+    const spy = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      seen.push(url);
+      if (!url.includes('/api/chain/')) throw new TypeError('Failed to fetch'); // net::ERR_BLOCKED_BY_CLIENT
+      const body = JSON.parse(String((init as RequestInit).body));
+      const answer = Array.isArray(body) ? body.map(rpcAnswer) : rpcAnswer(body);
+      return new Response(JSON.stringify(answer), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    return { seen, spy };
+  }
+
+  it('in the browser, uses the same-origin relay first', () => {
+    const relay = chainRelayUrl(ARC_NETWORKS.mainnet);
+    expect(relay).toBe(`${window.location.origin}/api/chain/mainnet`);
+    expect(arcBrowserTransport(ARC_NETWORKS.mainnet)({ chain: arcMainnet }).config.type).toBe('fallback');
+  });
+
+  it('still returns a balance when the direct RPC host is blocked by the browser', async () => {
+    const { seen, spy } = blockDirectRpc();
+    const client = createPublicClient({ chain: arcMainnet, transport: arcBrowserTransport(ARC_NETWORKS.mainnet) });
+
+    const balance = await client.getBalance({ address: ADDR });
+
+    expect(balance).toBe(16n);
+    expect(seen.every((u) => u.includes('/api/chain/mainnet'))).toBe(true); // never even tried the blocked host
+    spy.mockRestore();
+  });
+
+  it('the plain direct transport fails in the same scenario (proves the test is meaningful)', async () => {
+    const { spy } = blockDirectRpc();
+    const client = createPublicClient({ chain: arcMainnet, transport: arcTransport(ARC_NETWORKS.mainnet) });
+    await expect(client.getBalance({ address: ADDR })).rejects.toThrow();
+    spy.mockRestore();
+  }, 20000);
+
+  it('falls back to the direct RPC if the relay itself is unavailable', async () => {
+    const seen: string[] = [];
+    const spy = vi.spyOn(global, 'fetch').mockImplementation(async (input, init) => {
+      const url = String(input instanceof Request ? input.url : input);
+      seen.push(url);
+      if (url.includes('/api/chain/')) return new Response('bad gateway', { status: 502 });
+      const body = JSON.parse(String((init as RequestInit).body));
+      return new Response(JSON.stringify(Array.isArray(body) ? body.map(rpcAnswer) : rpcAnswer(body)), { status: 200 });
+    });
+    const client = createPublicClient({ chain: arcMainnet, transport: arcBrowserTransport(ARC_NETWORKS.mainnet) });
+    expect(await client.getBalance({ address: ADDR })).toBe(16n);
+    expect(seen.some((u) => u.startsWith('https://rpc.mainnet.arc.io'))).toBe(true);
+    spy.mockRestore();
+  }, 20000);
 });
 
 describe('wagmi.ts network wiring', () => {

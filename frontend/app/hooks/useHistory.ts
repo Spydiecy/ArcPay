@@ -166,7 +166,7 @@ export function useHistory() {
   // wallet happens to be on (e.g. mid-deposit on a Gateway source chain).
   const { chainId, contractAddress } = useArcNetwork();
   const client      = usePublicClient({ chainId });
-  const { data: balanceData, refetch: refetchBalance } = useBalance({ address, chainId });
+  const { data: balanceData, refetch: refetchBalance, isError: balanceQueryFailed } = useBalance({ address, chainId });
 
   const [escrows,       setEscrows]       = useState<EscrowRecord[]>([]);
   const [tokenEscrows,  setTokenEscrows]  = useState<TokenEscrowRecord[]>([]);
@@ -251,5 +251,8 @@ export function useHistory() {
     : balanceData ? `${formatNative(balanceData.value)} ${balanceData.symbol}`
     : null;
 
-  return { escrows, tokenEscrows, groups, batches, paymentLinks, balance, formattedBalance, loading, refresh };
+  // True when we have no balance to show AND the lookup failed (vs. still loading).
+  const balanceError = formattedBalance === null && balanceQueryFailed;
+
+  return { escrows, tokenEscrows, groups, batches, paymentLinks, balance, formattedBalance, balanceError, loading, refresh };
 }

@@ -2,7 +2,9 @@
 
 **Trustless payment infrastructure on Arc Mainnet and Arc Testnet. No middlemen. No broken promises.**
 
-📊 [Pitch Deck](https://canva.link/h8tqd13woyj1ycp) · 🐦 [Follow on X](https://x.com/arcpay_)
+[![Live on Arc Mainnet](https://img.shields.io/badge/Live_on-Arc_Mainnet-10B981?style=for-the-badge)](https://explorer.arc.io/address/0xCa36dD890F987EDcE1D6D7C74Fb9df627c216BF6)
+[![Pitch Deck](https://img.shields.io/badge/Pitch-Deck-7C3AED?style=for-the-badge)](https://canva.link/h8tqd13woyj1ycp)
+[![Follow on X](https://img.shields.io/badge/Follow-%40arcpay__-000000?style=for-the-badge&logo=x&logoColor=white)](https://x.com/arcpay_)
 
 ---
 

@@ -183,9 +183,51 @@ export const DEFAULT_NETWORK: ArcNetwork = ARC_NETWORKS[DEFAULT_NETWORK_KEY];
  * endpoints are configured — a fallback transport that retries the next RPC
  * if the current one errors or times out.
  */
+/**
+ * Why batching: the public Arc RPCs rate-limit bursts (HTTP 429), and Mainnet is
+ * far stricter than Testnet (measured: ~35% of 60 concurrent requests rejected on
+ * Mainnet vs ~5% on Testnet). The dashboard fires many reads at once on load, so
+ * concurrent calls are folded into a single JSON-RPC batch request.
+ *
+ * The batch size is capped because the endpoints answer at most 30 calls per
+ * batch and reject the rest with "rate limit exceeded" (-32005); viem's default
+ * cap of 1000 would silently lose results. 25 leaves headroom.
+ */
+export const RPC_BATCH_SIZE = 25;
+
+function rpcHttp(url: string) {
+  return http(url, {
+    batch: { batchSize: RPC_BATCH_SIZE, wait: 20 }, // small window to collect the burst
+    retryCount: 5,                                   // ride out short rate-limit windows
+    retryDelay: 250,                                 // exponential: 250ms, 500ms, 1s, ...
+    timeout: 15_000,
+  });
+}
+
 export function arcTransport(network: ArcNetwork): Transport {
-  const transports = network.rpcUrls.map((url) => http(url));
+  const transports = network.rpcUrls.map((url) => rpcHttp(url));
   return transports.length > 1 ? fallback(transports) : transports[0];
+}
+
+/**
+ * Transport for code that runs in the BROWSER (wagmi config, the public pay page).
+ *
+ * Browser extensions such as ad blockers and Brave Shields can block requests to
+ * third-party RPC hosts (`net::ERR_BLOCKED_BY_CLIENT`), which leaves balances
+ * and history empty. So in the browser we go through our own origin first
+ * (/api/chain/<network>, see app/api/chain) and only fall back to the direct RPC
+ * endpoints if that relay fails. On the server (SSR, API routes) there is no
+ * blocker, so this is just the direct transport.
+ */
+export function chainRelayUrl(network: ArcNetwork): string | null {
+  if (typeof window === 'undefined') return null;
+  return `${window.location.origin}/api/chain/${network.key}`;
+}
+
+export function arcBrowserTransport(network: ArcNetwork): Transport {
+  const relay = chainRelayUrl(network);
+  if (!relay) return arcTransport(network);
+  return fallback([rpcHttp(relay), ...network.rpcUrls.map((url) => rpcHttp(url))], { retryCount: 3, retryDelay: 250 });
 }
 
 // ── Lookups ───────────────────────────────────────────────────────────────────

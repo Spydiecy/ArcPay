@@ -15,7 +15,7 @@ import {
 import {
   arcMainnet,
   arcTestnet,
-  arcTransport,
+  arcBrowserTransport,
   ARC_NETWORKS,
   ARC_NETWORK_LIST,
   DEFAULT_NETWORK,
@@ -88,8 +88,8 @@ export const wagmiConfig = createConfig({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   connectors: connectors as any,
   transports: {
-    [arcTestnet.id]: arcTransport(ARC_NETWORKS.testnet),
-    [arcMainnet.id]: arcTransport(ARC_NETWORKS.mainnet),
+    [arcTestnet.id]: arcBrowserTransport(ARC_NETWORKS.testnet),
+    [arcMainnet.id]: arcBrowserTransport(ARC_NETWORKS.mainnet),
     [sepolia.id]: http(),
     [avalancheFuji.id]: http(),
     [optimismSepolia.id]: http(),

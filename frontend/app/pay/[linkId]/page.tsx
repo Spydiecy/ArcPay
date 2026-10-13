@@ -6,7 +6,7 @@ import { useParams } from 'next/navigation';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useSwitchChain } from 'wagmi';
 import { PROTECTED_PAY_ABI } from '../../lib/abi';
 import { shortAddress } from '../../lib/wagmi';
-import { ARC_NETWORKS, ARC_NETWORK_LIST, arcTransport, isArcNetworkKey, type ArcNetwork, type ArcNetworkKey } from '../../lib/networks';
+import { ARC_NETWORKS, ARC_NETWORK_LIST, arcBrowserTransport, isArcNetworkKey, type ArcNetwork, type ArcNetworkKey } from '../../lib/networks';
 import Toast, { ToastType } from '../../components/Toast';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { generateInvoicePDF } from '../../lib/invoice';
@@ -19,7 +19,7 @@ const NATIVE = process.env.NEXT_PUBLIC_NATIVE_SYMBOL || 'USDC';
 // One per Arc network, so a payment link can be looked up (and shown) without a
 // wallet connected and regardless of which environment the visitor last used.
 const readClients = Object.fromEntries(
-  ARC_NETWORK_LIST.map((n) => [n.key, createPublicClient({ chain: n.chain, transport: arcTransport(n) })]),
+  ARC_NETWORK_LIST.map((n) => [n.key, createPublicClient({ chain: n.chain, transport: arcBrowserTransport(n) })]),
 ) as Record<ArcNetworkKey, ReturnType<typeof createPublicClient>>;
 
 interface LinkData {

@@ -37,7 +37,7 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
   // chain. The sidebar balance always reflects the selected Arc network, even if
   // the wallet is momentarily on a Gateway source chain during a deposit.
   const { network: currentNetwork, key: networkKey, setNetwork } = useArcNetwork();
-  const { data: balance, refetch: refetchBalance } = useBalance({ address, chainId: currentNetwork.id });
+  const { data: balance, refetch: refetchBalance, isError: balanceFailed, isFetching: balanceFetching } = useBalance({ address, chainId: currentNetwork.id });
   const chainId                = useChainId(); // the wallet's chain
   const { switchChain, isPending: isSwitching } = useSwitchChain();
 
@@ -244,14 +244,21 @@ export default function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                   {copied ? <Check size={12} color="var(--primary)" /> : <Copy size={12} />}
                 </button>
               </div>
-              {balance && (
-                <div style={{ padding: '7px 10px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
-                  <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-subtle)', textTransform: 'uppercase', marginBottom: 2 }}>Balance</p>
+              <div style={{ padding: '7px 10px', borderRadius: 8, background: 'var(--surface-elevated)', border: '1px solid var(--border)' }}>
+                <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1, color: 'var(--foreground-subtle)', textTransform: 'uppercase', marginBottom: 2 }}>Balance</p>
+                {balance ? (
                   <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', letterSpacing: '-0.3px', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <UsdcIcon size={13} /> {formatNative(balance.value)} {nativeSymbol}
                   </p>
-                </div>
-              )}
+                ) : balanceFailed ? (
+                  <p style={{ fontSize: 11, color: 'var(--foreground-muted)' }}>
+                    Couldn&apos;t load.{' '}
+                    <button onClick={() => refetchBalance()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--primary)', fontWeight: 700, cursor: 'pointer', fontSize: 11, textDecoration: 'underline' }}>Retry</button>
+                  </p>
+                ) : (
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--foreground-subtle)' }}>{balanceFetching ? 'Loading…' : '—'}</p>
+                )}
+              </div>
             </>
           )}
         </div>

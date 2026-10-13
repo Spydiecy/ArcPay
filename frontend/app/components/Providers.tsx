@@ -12,7 +12,13 @@ import { useEffect, useState } from 'react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 10_000 },
+    // RPC reads can hit transient rate limits; retry with exponential backoff
+    // (1s, 2s, 4s) instead of giving up after one attempt and showing nothing.
+    queries: {
+      retry: 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+      staleTime: 10_000,
+    },
   },
 });
 

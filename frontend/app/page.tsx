@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ContainerScroll } from './components/ui/container-scroll-animation';
+import { ARC_NETWORKS } from './lib/networks';
 import {
   ArrowRight, Lock, Users, Zap, Globe,
   ShieldCheck, Sparkles, ChevronDown, Link2, Bot, Coins,
@@ -199,12 +200,21 @@ export default function HomePage() {
               textTransform: 'uppercase', marginBottom: 24,
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             }}>
-              <span style={{
-                width: 6, height: 6, borderRadius: '50%',
-                background: 'var(--primary)',
-                display: 'inline-block',
-              }} />
-              Arc Mainnet + Testnet · EVM Smart Contracts · USDC Gas
+              {/* Live signal: links to the deployed contract on the Arc Mainnet explorer */}
+              <a
+                href={`${ARC_NETWORKS.mainnet.explorerUrl}/address/${ARC_NETWORKS.mainnet.contractAddress}`}
+                target="_blank" rel="noopener noreferrer"
+                title="View the ArcPay contract on Arc Mainnet"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'inherit', textDecoration: 'none' }}
+              >
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: ARC_NETWORKS.mainnet.color,
+                  boxShadow: `0 0 0 3px ${ARC_NETWORKS.mainnet.bg}, 0 0 10px ${ARC_NETWORKS.mainnet.color}`,
+                  display: 'inline-block',
+                }} />
+                Live on Arc Mainnet · EVM Smart Contracts · USDC Gas
+              </a>
             </p>
             <h1 style={{ fontSize: 'clamp(44px, 7vw, 88px)', fontWeight: 800, lineHeight: 1.05, letterSpacing: '-3px', marginBottom: 28 }}>
               <span style={{ color: 'var(--foreground)', display: 'block' }}>Protected Payments</span>
